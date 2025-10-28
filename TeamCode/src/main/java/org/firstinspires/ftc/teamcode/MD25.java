@@ -44,26 +44,41 @@ public class MD25 extends LinearOpMode {
         double targetPower = 0;
         double strafePower = 0;
         double turnPower = 0;
+        double ferrisCode = 0;
+        boolean negFerrisCode = false;
+        boolean resetFerris = false;
+        double nuclearLaunchCodes = 0;
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
 
-            telemetry.addData("Frontleft", robot.frontLeftPosition());
-            telemetry.addData("Frontright", robot.frontRightPosition());
-            telemetry.addData("Backright", robot.backRightPosition());
-            telemetry.addData("Backleft", robot.backLeftPosition());
-            //telemetry.addData("Claw Left Power",robot.ClawLeftPower());
-            //telemetry.addData("Claw Right Power",robot.ClawRightPower());
+            telemetry.addData("Front Left", robot.frontLeftPosition());
+            telemetry.addData("Front Right", robot.frontRightPosition());
+            telemetry.addData("Back Left", robot.backLeftPosition());
+            telemetry.addData("Back Right", robot.backRightPosition());
+            telemetry.addData("Obelisk ID Code",robot.procureAprilTagList(1));
+            telemetry.addData("Blue Zone ID Code",robot.procureAprilTagList(0));
+            telemetry.addData("Red Zone ID Code",robot.procureAprilTagList(2));
+            telemetry.addData("Colour Hue in Degrees",robot.getColorData());
+            telemetry.addData("Current hue",robot.getColorHue());
+            telemetry.addData("X Rotation",robot.imuRecorder(0));
+            telemetry.addData("Y Rotation",robot.imuRecorder(1));
+            telemetry.addData("Z Rotation",robot.imuRecorder(2));
             telemetry.update();
-
 
             //DRIVER CONTROLLER-----------------------------------------------------
             targetPower = -this.gamepad1.left_stick_y;
             strafePower = (this.gamepad1.left_trigger - this.gamepad1.right_trigger) * 0.8;//this.gamepad1.left_stick_x;//
             turnPower = -this.gamepad1.right_stick_x * 0.8;
-
             robot.driveRobot(targetPower, strafePower, turnPower);
 
+            //OPERATOR CONTROLLER---------------------------------------------------
+            ferrisCode = this.gamepad2.left_trigger;
+            negFerrisCode = this.gamepad2.left_bumper;
+            resetFerris = this.gamepad2.right_bumper;
+            robot.ferris(ferrisCode, negFerrisCode, resetFerris);
+            nuclearLaunchCodes = this.gamepad2.right_trigger;
+            robot.launch(nuclearLaunchCodes);
         }
     }
 }

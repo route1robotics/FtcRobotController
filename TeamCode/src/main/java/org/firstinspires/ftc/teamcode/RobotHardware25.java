@@ -1,16 +1,29 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.graphics.Color;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+import com.qualcomm.robotcore.hardware.ColorSensor;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.Blinker;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.IMU;
+
+import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
+import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesOrder;
+import org.firstinspires.ftc.robotcore.external.navigation.AxesReference;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
 import java.lang.Math;
 import java.util.List;
@@ -43,6 +56,10 @@ public class RobotHardware25 {
     private Servo claw = null;
     private DcMotor rotate_motor = null;
     private TouchSensor vertical_sensor = null;
+    private ColorSensor colorSensor = null;
+    private IMU imu = null;
+    private DcMotor ferris = null;
+    private DcMotor launcher = null;
 
     // Define Drive constants.  Make them public so they CAN be used by the calling OpMode
     private int ENCODER_TILE = 26000;
@@ -59,13 +76,9 @@ public class RobotHardware25 {
     private double eq2StrafeInter = Y2 - eq2SlopeStrafe*X2;  //Intercept
     private double eq3Slope = (1 - Y2)/(1 - X2);
     private double eq3Inter = 1 - eq3Slope;  //Intercept
-    private boolean enableManualMode=true;
-    private double LeftEncoder = 0;//back_right.getCurrentPosition();
-    private double RightEncoder = 0;//front_left.getCurrentPosition();
-    private double BackEncoder = 0;//front_right.getCurrentPosition();
-    private boolean viperMax = false;
-    private int cameraGain=60;
-    private int cameraExposure=20;
+
+    private int[] idCodes = {0,0,0};
+    private String color = "";
 
 
     // Define a constructor that allows the OpMode to pass a reference to itself.
@@ -82,15 +95,21 @@ public class RobotHardware25 {
     public void init()    {
         // Define and Initialize Motors (note: need to use reference to actual OpMode).
         control_Hub = myOpMode.hardwareMap.get(Blinker.class, "Control Hub");
-        back_left = myOpMode.hardwareMap.get(DcMotor.class, "back left");
-        back_right = myOpMode.hardwareMap.get(DcMotor.class, "back right");
-        front_left = myOpMode.hardwareMap.get(DcMotor.class, "front left");
-        front_right = myOpMode.hardwareMap.get(DcMotor.class, "front right");
+        back_left = myOpMode.hardwareMap.get(DcMotor.class, "back left"); //0
+        back_right = myOpMode.hardwareMap.get(DcMotor.class, "back right"); //1
+        front_left = myOpMode.hardwareMap.get(DcMotor.class, "front left"); //2
+        front_right = myOpMode.hardwareMap.get(DcMotor.class, "front right"); //3
+        //colorSensor = myOpMode.hardwareMap.get(ColorSensor.class, "color sensor"); // I2C 1
+        imu = myOpMode.hardwareMap.get(IMU.class, "imu"); // I2C 0
+        ferris = myOpMode.hardwareMap.get(DcMotor.class, "ferris"); // Expansion Hub, motor 0
+        launcher = myOpMode.hardwareMap.get(DcMotor.class, "launcher"); // EH, motor 1
+
 
         front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
 
         initializeVisionPortal();
 
@@ -141,7 +160,7 @@ public class RobotHardware25 {
     public void getVisionPortalData(){
         //https://ftc-docs.firstinspires.org/en/latest/apriltag/vision_portal/apriltag_id_code/apriltag-id-code.html
         List<AprilTagDetection> myAprilTagDetections;  // list of all detections
-        int myAprilTagIdCode;                           // ID code of current detection, in for() loop
+        int myAprilTagIdCode = 0;                           // ID code of current detection, in for() loop
 
         // Get a list of AprilTag detections.
         myAprilTagDetections = myAprilTagProcessor.getDetections();
@@ -155,18 +174,77 @@ public class RobotHardware25 {
                 double myTagPoseBearing = myAprilTagDetection.ftcPose.bearing;
                 double myTagPoseElevation = myAprilTagDetection.ftcPose.elevation;
                 // Now take action based on this tag's ID code, or store info for later action.
-
+                if (myAprilTagIdCode == 21) {
+                    idCodes[1] = 21;
+                }
+                else if (myAprilTagIdCode == 22) {
+                    idCodes[1] = 22;
+                }
+                else if (myAprilTagIdCode == 23) {
+                    idCodes[1] = 23;
+                }
+                else {
+                    idCodes[1] = 0;
+                }
+                if (myAprilTagIdCode == 20) {
+                    idCodes[0] = 20;
+                }
+                else {
+                    idCodes[0] = 0;
+                }
+                if (myAprilTagIdCode == 24) {
+                    idCodes[2] = 24;
+                }
+                else {
+                    idCodes[2] = 0;
+                }
             }
         }
     }
+
+
+    public int procureAprilTagList(int pos) {
+
+        return idCodes[pos];
+    }
+
+    // displays a color (purple or green) given a hue range
+    public float getColorData() {
+        float[] hsvValues = new float[3];
+        //Color.RGBToHSV(colorSensor.red(), colorSensor.green(), colorSensor.blue(), hsvValues);
+
+        return hsvValues[0];
+    }
+
+    // mainly for debugging; gives the hue value in degrees the sensor is currently seeing
+    public float getColorHue() {
+        float[] hsvValues = new float[3];
+        //Color.RGBToHSV(colorSensor.red(), colorSensor.green(), colorSensor.blue(), hsvValues);
+
+        return hsvValues[0];
+    }
+
+
+    public float imuRecorder (int num) {
+        float[] angles = new float[3];
+        angles[0] = imu.getRobotOrientation(AxesReference.EXTRINSIC, AxesOrder.XYZ, AngleUnit.DEGREES).firstAngle;
+        angles[1] = imu.getRobotOrientation(AxesReference.EXTRINSIC, AxesOrder.XYZ, AngleUnit.DEGREES).secondAngle;
+        angles[2] = imu.getRobotOrientation(AxesReference.EXTRINSIC, AxesOrder.XYZ, AngleUnit.DEGREES).thirdAngle;
+
+        return angles[num];
+    }
+
 
     public void driveCoast() {
         front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        ferris.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
+    
     /**
      * Calculates the power adjustments based on controller input.
      * Then sends these power levels to the motors.
@@ -381,6 +459,68 @@ public class RobotHardware25 {
         back_right.setPower(1);
     }
 
+
+    // FERRIS WHEEL EXCLUSIVE VARIABLES #====================================================================
+    boolean ferrisMoving = false;
+    int targetPosition = 0;
+    int initialPosition = 0; // Store the initial position of the motor
+    final double ferrisSpeed = 0.2; // Ferris wheel speed
+    final double resetSpeed = 0.1; // Speed when holding both bumpers manually
+
+    public void ferris(double triggerValue, boolean bumperPressed, boolean rightBumperPressed) {
+
+        // --- Automated quarter-turn forward ---
+        if (triggerValue > 0.1 && !ferrisMoving) {
+            ferrisMoving = true;
+            int ticksPerQuarterTurn = (int)(ferris.getMotorType().getTicksPerRev() * 0.25);
+            targetPosition = ferris.getCurrentPosition() + ticksPerQuarterTurn;
+
+            ferris.setTargetPosition(targetPosition);
+            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            ferris.setPower(ferrisSpeed);
+        }
+        // --- Automated quarter-turn backward ---
+        else if (bumperPressed && !rightBumperPressed && !ferrisMoving) {
+            ferrisMoving = true;
+            int ticksPerQuarterTurn = (int)(ferris.getMotorType().getTicksPerRev() * 0.25);
+            targetPosition = ferris.getCurrentPosition() - ticksPerQuarterTurn;
+
+            ferris.setTargetPosition(targetPosition);
+            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            ferris.setPower(-ferrisSpeed);
+        }
+        // --- Manual backward when both bumpers are held ---
+        else if (bumperPressed && rightBumperPressed) {
+            ferris.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            ferris.setPower(-resetSpeed); // Move backward slowly
+        }
+        // --- When neither both bumpers are held nor other movement commands, stop motor and set new initial position ---
+        else {
+            if (ferris.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
+                ferris.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+                ferris.setPower(0);
+                initialPosition = ferris.getCurrentPosition(); // Update new initial position
+            }
+            ferrisMoving = false;
+        }
+
+        // --- Stop automated movement when target reached ---
+        if (ferrisMoving && !ferris.isBusy()) {
+            ferris.setPower(0);
+            ferris.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            ferrisMoving = false;
+        }
+    }
+
+    public void launch(double triggerValue) {
+        if (triggerValue != 0) {
+            launcher.setPower(-1);
+        }
+        else {
+            launcher.setPower(0);
+        }
+    }
+
 }
 
 
@@ -388,3 +528,52 @@ public class RobotHardware25 {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//           ⣿⣿⣿⣿⣿⣿⡿⠛⣛⣛⣛⣛⣛⣛⣛⣛⣛⣛⡛⠛⠿⠿⢿⣿⣿⣿⣿⣿⣿
+//           ⣿⣿⣿⣿⡿⢃⣴⣿⠿⣻⢽⣲⠿⠭⠭⣽⣿⣓⣛⣛⣓⣲⣶⣢⣍⠻⢿⣿⣿
+//           ⣿⣿⣿⡿⢁⣾⣿⣵⡫⣪⣷⠿⠿⢿⣷⣹⣿⣿⣿⢲⣾⣿⣾⡽⣿⣷⠈⣿⣿
+//           ⣿⣿⠟⠁⣚⣿⣿⠟⡟⠡⠀⠀⠀⠶⣌⠻⣿⣿⠿⠛⠉⠉⠉⢻⣿⣿⠧⡙⢿
+//           ⡿⢡⢲⠟⣡⡴⢤⣉⣛⠛⣋⣥⣿⣷⣦⣾⣿⣿⡆⢰⣾⣿⠿⠟⣛⡛⢪⣎⠈
+//           ⣧⢸⣸⠐⣛⡁⢦⣍⡛⠿⢿⣛⣿⡍⢩⠽⠿⣿⣿⡦⠉⠻⣷⣶⠇⢻⣟⠟⢀
+//           ⣿⣆⠣⢕⣿⣷⡈⠙⠓⠰⣶⣤⣍⠑⠘⠾⠿⠿⣉⣡⡾⠿⠗⡉⡀⠘⣶⢃⣾
+//           ⣿⣿⣷⡈⢿⣿⣿⣌⠳⢠⣄⣈⠉⠘⠿⠿⠆⠶⠶⠀⠶⠶⠸⠃⠁⠀⣿⢸⣿
+//           ⣿⣿⣿⣷⡌⢻⣿⣿⣧⣌⠻⢿⢃⣷⣶⣤⢀⣀⣀⢀⣀⠀⡀⠀⠀⢸⣿⢸⣿
+//           ⣿⣿⣿⣿⣿⣦⡙⠪⣟⠭⣳⢦⣬⣉⣛⠛⠘⠿⠇⠸⠋⠘⣁⣁⣴⣿⣿⢸⣿
+//           ⣿⣿⣿⣿⣿⣿⣿⣷⣦⣉⠒⠭⣖⣩⡟⠛⣻⣿⣿⣿⣿⣿⣟⣫⣾⢏⣿⠘⣿
+//           ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣍⡛⠿⠿⣶⣶⣿⣿⣿⣿⣿⣾⣿⠟⣰⣿
+//           ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣶⣶⣤⣭⣍⣉⣛⣋⣭⣥⣾⣿⣿
