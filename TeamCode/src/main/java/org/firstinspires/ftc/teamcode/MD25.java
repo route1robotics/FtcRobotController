@@ -48,6 +48,8 @@ public class MD25 extends LinearOpMode {
         boolean negFerrisCode = false;
         boolean resetFerris = false;
         double nuclearLaunchCodes = 0;
+        boolean armServoThingyIDK = false;
+        boolean mandibleButton = false;
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
@@ -64,6 +66,7 @@ public class MD25 extends LinearOpMode {
             telemetry.addData("X Rotation",robot.imuRecorder(0));
             telemetry.addData("Y Rotation",robot.imuRecorder(1));
             telemetry.addData("Z Rotation",robot.imuRecorder(2));
+            telemetry.addData("Mandible State",robot.grab(mandibleButton));
             telemetry.update();
 
             //DRIVER CONTROLLER-----------------------------------------------------
@@ -73,12 +76,17 @@ public class MD25 extends LinearOpMode {
             robot.driveRobot(targetPower, strafePower, turnPower);
 
             //OPERATOR CONTROLLER---------------------------------------------------
+            //Triggers / Bumpers
             ferrisCode = this.gamepad2.left_trigger;
+            nuclearLaunchCodes = this.gamepad2.right_trigger;
             negFerrisCode = this.gamepad2.left_bumper;
             resetFerris = this.gamepad2.right_bumper;
-            robot.ferris(ferrisCode, negFerrisCode, resetFerris);
-            nuclearLaunchCodes = this.gamepad2.right_trigger;
-            robot.launch(nuclearLaunchCodes);
+            robot.ferris(ferrisCode, negFerrisCode, resetFerris); // l trigger, both bumpers
+            robot.launch(nuclearLaunchCodes); // r trigger
+            //Letter Buttons
+            armServoThingyIDK = this.gamepad2.a;
+            mandibleButton = this.gamepad2.b;
+            robot.grab(mandibleButton); // b
         }
     }
 }

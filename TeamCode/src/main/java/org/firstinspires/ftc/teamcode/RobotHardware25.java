@@ -44,22 +44,13 @@ public class RobotHardware25 {
     private DcMotor back_right = null;
     private DcMotor front_left = null;
     private DcMotor front_right = null;
-    private DcMotor Viper_Slide = null;
-    private DcMotor string_spool = null;
-    private DcMotor bottom_motor = null;
-    private DcMotor top_motor = null;
 
-    private CRServo tape = null;
-    private CRServo claw_left = null;
-    private CRServo claw_right = null;
-    private TouchSensor slide_stop = null;
-    private Servo claw = null;
-    private DcMotor rotate_motor = null;
-    private TouchSensor vertical_sensor = null;
     private ColorSensor colorSensor = null;
     private IMU imu = null;
     private DcMotor ferris = null;
     private DcMotor launcher = null;
+    private Servo l_mandible = null;
+    private Servo r_mandible = null;
 
     // Define Drive constants.  Make them public so they CAN be used by the calling OpMode
     private int ENCODER_TILE = 26000;
@@ -78,7 +69,6 @@ public class RobotHardware25 {
     private double eq3Inter = 1 - eq3Slope;  //Intercept
 
     private int[] idCodes = {0,0,0};
-    private String color = "";
 
 
     // Define a constructor that allows the OpMode to pass a reference to itself.
@@ -103,6 +93,8 @@ public class RobotHardware25 {
         imu = myOpMode.hardwareMap.get(IMU.class, "imu"); // I2C 0
         ferris = myOpMode.hardwareMap.get(DcMotor.class, "ferris"); // Expansion Hub, motor 0
         launcher = myOpMode.hardwareMap.get(DcMotor.class, "launcher"); // EH, motor 1
+        l_mandible = myOpMode.hardwareMap.get(Servo.class, "left claw"); // EH Servo 0
+        r_mandible = myOpMode.hardwareMap.get(Servo.class, "right claw"); // CH Servo 5
 
 
         front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -353,7 +345,7 @@ public class RobotHardware25 {
 
     void DriveForward(double power, double tiles)
     {
-        int c = front_left.getCurrentPosition();
+        int c = front_right.getCurrentPosition();
         int W = 0;
         double ticks = tiles*ENCODER_TILE;
 
@@ -361,14 +353,14 @@ public class RobotHardware25 {
         while (W < ticks)
         {
             if(!myOpMode.opModeIsActive()){return;}
-            W = Math.abs(front_left.getCurrentPosition() - c);
+            W = Math.abs(front_right.getCurrentPosition() - c);
         }
         allDrive(0,0,0);
     }
 
     void DriveForwardSafe(double power, double tiles, double timeout)
     {
-        int c = front_left.getCurrentPosition();
+        int c = front_right.getCurrentPosition();
         int W = 0;
         double ticks = tiles*ENCODER_TILE;
 
@@ -381,7 +373,7 @@ public class RobotHardware25 {
                 break;
             }
             if(!myOpMode.opModeIsActive()){return;}
-            W = Math.abs(front_left.getCurrentPosition() - c);
+            W = Math.abs(front_right.getCurrentPosition() - c);
         }
         allDrive(0,0,0);
     }
@@ -462,46 +454,21 @@ public class RobotHardware25 {
 
     // FERRIS WHEEL EXCLUSIVE VARIABLES #====================================================================
     boolean ferrisMoving = false;
-    int targetPosition = 0;
-    int initialPosition = 0; // Store the initial position of the motor
     final double ferrisSpeed = 0.2; // Ferris wheel speed
-    final double resetSpeed = 0.1; // Speed when holding both bumpers manually
 
     public void ferris(double triggerValue, boolean bumperPressed, boolean rightBumperPressed) {
 
         // --- Automated quarter-turn forward ---
         if (triggerValue > 0.1 && !ferrisMoving) {
-            ferrisMoving = true;
-            int ticksPerQuarterTurn = (int)(ferris.getMotorType().getTicksPerRev() * 0.25);
-            targetPosition = ferris.getCurrentPosition() + ticksPerQuarterTurn;
-
-            ferris.setTargetPosition(targetPosition);
-            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            ferris.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             ferris.setPower(ferrisSpeed);
+            ferrisMoving = true;
         }
         // --- Automated quarter-turn backward ---
-        else if (bumperPressed && !rightBumperPressed && !ferrisMoving) {
-            ferrisMoving = true;
-            int ticksPerQuarterTurn = (int)(ferris.getMotorType().getTicksPerRev() * 0.25);
-            targetPosition = ferris.getCurrentPosition() - ticksPerQuarterTurn;
-
-            ferris.setTargetPosition(targetPosition);
-            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-            ferris.setPower(-ferrisSpeed);
-        }
-        // --- Manual backward when both bumpers are held ---
-        else if (bumperPressed && rightBumperPressed) {
+        else if (bumperPressed && !ferrisMoving) {
             ferris.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            ferris.setPower(-resetSpeed); // Move backward slowly
-        }
-        // --- When neither both bumpers are held nor other movement commands, stop motor and set new initial position ---
-        else {
-            if (ferris.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
-                ferris.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                ferris.setPower(0);
-                initialPosition = ferris.getCurrentPosition(); // Update new initial position
-            }
-            ferrisMoving = false;
+            ferris.setPower(-ferrisSpeed);
+            ferrisMoving = true;
         }
 
         // --- Stop automated movement when target reached ---
@@ -514,12 +481,40 @@ public class RobotHardware25 {
 
     public void launch(double triggerValue) {
         if (triggerValue != 0) {
-            launcher.setPower(-1);
+            launcher.setPower(-0.8); // ADJUST. On full battery, 1 is too much and is only one well tested.
         }
         else {
             launcher.setPower(0);
         }
     }
+
+    boolean grabbing = false;
+    boolean previousButtonStateMandible = false; // Tracks last button state
+
+    public String grab(boolean buttonPress) {
+        String state = grabbing ? "open" : "closed";
+
+        // Detect rising edge: button just pressed
+        if (buttonPress && !previousButtonStateMandible) {
+            grabbing = !grabbing; // Toggle state
+
+            // Move servo depending on new state
+            if (grabbing) {
+                l_mandible.setPosition(0.4);
+                r_mandible.setPosition(0.5);
+                state = "open";
+            } else {
+                l_mandible.setPosition(0.0);
+                r_mandible.setPosition(0.8);
+                state = "closed";
+            }
+        }
+
+        previousButtonStateMandible = buttonPress;
+        return state;
+    }
+
+
 
 }
 
