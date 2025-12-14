@@ -1,5 +1,6 @@
 package org.firstinspires.ftc.teamcode;
 
+import android.annotation.SuppressLint;
 import android.graphics.Color;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
@@ -28,7 +29,6 @@ import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 import java.lang.Math;
 import java.util.List;
 
-
 public class RobotHardware25 {
 
     private int VIPER_MAX_ENCODER_VALUE = 2600;
@@ -51,10 +51,11 @@ public class RobotHardware25 {
     private DcMotor launcher = null;
     private Servo l_mandible = null;
     private Servo r_mandible = null;
+    private Servo kicker = null;
 
     // Define Drive constants.  Make them public so they CAN be used by the calling OpMode
-    private int ENCODER_TILE = 26000;
-    private int ENCODER_CIRCLE = 24000;
+    private int ENCODER_TILE = 8000;
+    private int ENCODER_CIRCLE = 8000;
     private boolean enableSlopeEquations = true;
     private double X1 = 0.5;
     private double Y1 = 0.3;
@@ -69,6 +70,17 @@ public class RobotHardware25 {
     private double eq3Inter = 1 - eq3Slope;  //Intercept
 
     private int[] idCodes = {0,0,0};
+
+    // Robot position relative to start (units = tiles)
+    public double globalX = 0.0;
+    public double globalY = 0.0;
+
+    // Robot heading (degrees)
+    public double headingDeg = 0.0;
+
+    // Store last encoder positions
+    double lastFL = 0, lastFR = 0, lastBL = 0, lastBR = 0;
+
 
 
     // Define a constructor that allows the OpMode to pass a reference to itself.
@@ -85,16 +97,17 @@ public class RobotHardware25 {
     public void init()    {
         // Define and Initialize Motors (note: need to use reference to actual OpMode).
         control_Hub = myOpMode.hardwareMap.get(Blinker.class, "Control Hub");
-        back_left = myOpMode.hardwareMap.get(DcMotor.class, "back left"); //0
-        back_right = myOpMode.hardwareMap.get(DcMotor.class, "back right"); //1
-        front_left = myOpMode.hardwareMap.get(DcMotor.class, "front left"); //2
-        front_right = myOpMode.hardwareMap.get(DcMotor.class, "front right"); //3
+        back_left    = myOpMode.hardwareMap.get(DcMotor.class, "back left");   // 0
+        back_right   = myOpMode.hardwareMap.get(DcMotor.class, "back right");  // 1
+        front_left   = myOpMode.hardwareMap.get(DcMotor.class, "front left");  // 2
+        front_right  = myOpMode.hardwareMap.get(DcMotor.class, "front right"); // 3
         //colorSensor = myOpMode.hardwareMap.get(ColorSensor.class, "color sensor"); // I2C 1
         imu = myOpMode.hardwareMap.get(IMU.class, "imu"); // I2C 0
         ferris = myOpMode.hardwareMap.get(DcMotor.class, "ferris"); // Expansion Hub, motor 0
-        launcher = myOpMode.hardwareMap.get(DcMotor.class, "launcher"); // EH, motor 1
-        l_mandible = myOpMode.hardwareMap.get(Servo.class, "left claw"); // EH Servo 0
-        r_mandible = myOpMode.hardwareMap.get(Servo.class, "right claw"); // CH Servo 5
+        launcher = myOpMode.hardwareMap.get(DcMotor.class, "launcher"); // Expansion Hub, motor 1
+        l_mandible = myOpMode.hardwareMap.get(Servo.class, "left claw"); // Expansion Hub, Servo 0
+        r_mandible = myOpMode.hardwareMap.get(Servo.class, "right claw"); // Control Hub, Servo 5
+        kicker =  myOpMode.hardwareMap.get(Servo.class, "kicker"); // Expansion Hub, Servo 1
 
 
         front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -102,6 +115,10 @@ public class RobotHardware25 {
         back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
+        lastFL = front_left.getCurrentPosition();
+        lastFR = front_right.getCurrentPosition();
+        lastBL = back_left.getCurrentPosition();
+        lastBR = back_right.getCurrentPosition();
 
         initializeVisionPortal();
 
@@ -149,50 +166,28 @@ public class RobotHardware25 {
         myVisionPortal = myVisionPortalBuilder.build();
     }
 
-    public void getVisionPortalData(){
-        //https://ftc-docs.firstinspires.org/en/latest/apriltag/vision_portal/apriltag_id_code/apriltag-id-code.html
-        List<AprilTagDetection> myAprilTagDetections;  // list of all detections
-        int myAprilTagIdCode = 0;                           // ID code of current detection, in for() loop
+    public void getVisionPortalData() {
+        List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
 
-        // Get a list of AprilTag detections.
-        myAprilTagDetections = myAprilTagProcessor.getDetections();
+        if (detections == null || detections.isEmpty()) {
+            idCodes[0] = idCodes[1] = idCodes[2] = 0;
+            return;
+        }
 
-        // Cycle through through the list and process each AprilTag.
-        for (AprilTagDetection myAprilTagDetection : myAprilTagDetections) {
+        for (AprilTagDetection tag : detections) {
 
-            if (myAprilTagDetection.metadata != null) {  // This check for non-null Metadata is not needed for reading only ID code.
-                myAprilTagIdCode = myAprilTagDetection.id;
-                double myTagPoseRange = myAprilTagDetection.ftcPose.range;
-                double myTagPoseBearing = myAprilTagDetection.ftcPose.bearing;
-                double myTagPoseElevation = myAprilTagDetection.ftcPose.elevation;
-                // Now take action based on this tag's ID code, or store info for later action.
-                if (myAprilTagIdCode == 21) {
-                    idCodes[1] = 21;
-                }
-                else if (myAprilTagIdCode == 22) {
-                    idCodes[1] = 22;
-                }
-                else if (myAprilTagIdCode == 23) {
-                    idCodes[1] = 23;
-                }
-                else {
-                    idCodes[1] = 0;
-                }
-                if (myAprilTagIdCode == 20) {
-                    idCodes[0] = 20;
-                }
-                else {
-                    idCodes[0] = 0;
-                }
-                if (myAprilTagIdCode == 24) {
-                    idCodes[2] = 24;
-                }
-                else {
-                    idCodes[2] = 0;
-                }
-            }
+            if (tag == null) continue;
+            if (tag.metadata == null) continue;
+            if (tag.ftcPose == null) continue;
+
+            int id = tag.id;
+
+            if (id == 20) idCodes[0] = 20;
+            else if (id == 21 || id == 22 || id == 23) idCodes[1] = id;
+            else if (id == 24) idCodes[2] = 24;
         }
     }
+
 
 
     public int procureAprilTagList(int pos) {
@@ -236,7 +231,7 @@ public class RobotHardware25 {
         launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
-    
+
     /**
      * Calculates the power adjustments based on controller input.
      * Then sends these power levels to the motors.
@@ -454,121 +449,314 @@ public class RobotHardware25 {
 
     // FERRIS WHEEL EXCLUSIVE VARIABLES #====================================================================
     boolean ferrisMoving = false;
-    final double ferrisSpeed = 0.2; // Ferris wheel speed
+    final double ferrisSpeed = 0.3; // Ferris wheel speed
 
-    public void ferris(double triggerValue, boolean bumperPressed, boolean rightBumperPressed) {
+    public void ferris(double stickValue) {
 
-        // --- Automated quarter-turn forward ---
-        if (triggerValue > 0.1 && !ferrisMoving) {
+        // --- FORWARD ---
+        if (stickValue >= 0.05) {
             ferris.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
             ferris.setPower(ferrisSpeed);
-            ferrisMoving = true;
-        }
-        // --- Automated quarter-turn backward ---
-        else if (bumperPressed && !ferrisMoving) {
-            ferris.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-            ferris.setPower(-ferrisSpeed);
-            ferrisMoving = true;
+            return;
         }
 
-        // --- Stop automated movement when target reached ---
-        if (ferrisMoving && !ferris.isBusy()) {
-            ferris.setPower(0);
-            ferris.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-            ferrisMoving = false;
+        // --- BACKWARD ---
+        if (stickValue <= -0.05) {
+            ferris.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            ferris.setPower(-ferrisSpeed);
+            return;
+        }
+
+        // --- NO INPUT ---
+        ferris.setPower(0);
+    }
+
+    public void ferrisReset(boolean resetButton){
+        if (resetButton) {
+            ferris.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         }
     }
 
+    public void ferrisQuarter(boolean bumperValue) {
+        final int TPR = 1500;
+        int quartRot = TPR / 4;
+        if (bumperValue) {
+            quartRot += ferris.getCurrentPosition();
+            ferris.setTargetPosition(quartRot);
+            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            ferris.setPower(0.3);
+            while (ferris.isBusy()) {
+
+            }
+            //ferris.setPower(0);
+        }
+    }
+
+
     public void launch(double triggerValue) {
         if (triggerValue != 0) {
-            launcher.setPower(-0.8); // ADJUST. On full battery, 1 is too much and is only one well tested.
+            launcher.setPower(-1*launchPower);
         }
         else {
             launcher.setPower(0);
         }
     }
 
-    boolean grabbing = false;
-    boolean previousButtonStateMandible = false; // Tracks last button state
+//    int targetPosition=0;
+//    int initialPosition=0;
+//    double resetSpeed=0.1;
+//    public void ferrisEnc(double triggerValue, boolean bumperPressed, boolean rightBumperPressed) {
+//
+//        // --- Automated quarter-turn forward ---
+//        if (triggerValue > 0.1 && !ferrisMoving) {
+//            ferrisMoving = true;
+//            int ticksPerQuarterTurn = (int)(ferris.getMotorType().getTicksPerRev() * 0.25);
+//            targetPosition = ferris.getCurrentPosition() + ticksPerQuarterTurn;
+//
+//            ferris.setTargetPosition(targetPosition);
+//            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+//            ferris.setPower(ferrisSpeed);
+//        }
+//        // --- Automated quarter-turn backward ---
+//        else if (bumperPressed && !rightBumperPressed && !ferrisMoving) {
+//            ferrisMoving = true;
+//            int ticksPerQuarterTurn = (int)(ferris.getMotorType().getTicksPerRev() * 0.25);
+//            targetPosition = ferris.getCurrentPosition() - ticksPerQuarterTurn;
+//
+//            ferris.setTargetPosition(targetPosition);
+//            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+//            ferris.setPower(-ferrisSpeed);
+//        }
+//        // --- Manual backward when both bumpers are held ---
+//        else if (bumperPressed && rightBumperPressed) {
+//            ferris.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+//            ferris.setPower(-resetSpeed); // Move backward slowly
+//        }
+//        // --- When neither both bumpers are held nor other movement commands, stop motor and set new initial position ---
+//        else {
+//            if (ferris.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
+//                ferris.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+//                ferris.setPower(0);
+//                initialPosition = ferris.getCurrentPosition(); // Update new initial position
+//            }
+//            ferrisMoving = false;
+//        }
+//
+//        // --- Stop automated movement when target reached ---
+//        if (ferrisMoving && !ferris.isBusy()) {
+//            ferris.setPower(0);
+//            ferris.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+//            ferrisMoving = false;
+//        }
+//    }
 
-    public String grab(boolean buttonPress) {
-        String state = grabbing ? "open" : "closed";
+
+    public void mandClose(boolean buttonPress) {
 
         // Detect rising edge: button just pressed
-        if (buttonPress && !previousButtonStateMandible) {
-            grabbing = !grabbing; // Toggle state
-
-            // Move servo depending on new state
-            if (grabbing) {
-                l_mandible.setPosition(0.4);
-                r_mandible.setPosition(0.5);
-                state = "open";
-            } else {
-                l_mandible.setPosition(0.0);
-                r_mandible.setPosition(0.8);
-                state = "closed";
-            }
+        if (buttonPress) {
+            l_mandible.setPosition(0.0);
+            r_mandible.setPosition(0.8);
         }
 
-        previousButtonStateMandible = buttonPress;
-        return state;
+    }
+
+    public void mandHalf(boolean buttonPress) {
+
+        // Detect rising edge: button just pressed
+        if (buttonPress) {
+            l_mandible.setPosition(0.15);
+            r_mandible.setPosition(0.65);
+        }
+
+    }
+
+    public void mandOpen(boolean buttonPress) {
+
+        if (buttonPress) {
+
+            l_mandible.setPosition(0.25);
+            r_mandible.setPosition(0.5);
+        }
+    }
+
+    public void LaunchKicker(boolean buttonPress){
+        if (buttonPress){
+            kicker.setPosition(1);
+        }
+    }
+
+    public void ReturnKicker(boolean buttonPress){
+        if (buttonPress){
+            kicker.setPosition(0.5);
+        }
+    }
+
+    double launchPower = 0.7;
+    boolean previousButtonStatePowerUp = false;
+    boolean previousButtonStatePowerDown = false;
+
+    public void setLaunchPower(double power) {
+        launchPower = power;
+    }
+
+    public void LaunchPowerUp(boolean buttonPress) {
+        // Detect rising edge: button just pressed
+        if (buttonPress && !previousButtonStatePowerUp) {
+            if (launchPower < 1) {
+                launchPower += 0.05;
+            }
+        }
+        previousButtonStatePowerUp = buttonPress;
+    }
+
+    public void LaunchPowerDown(boolean buttonPress) {
+        // Detect rising edge: button just pressed
+        if (buttonPress && !previousButtonStatePowerDown) {
+            if (launchPower > 0) {
+                launchPower -= 0.05;
+            }
+        }
+        previousButtonStatePowerDown = buttonPress;
+    }
+
+    public double GetLaunchPower() {
+        return launchPower;
+    }
+
+    public void waitSafe(double seconds) {
+        myOpMode.resetRuntime();
+        while (myOpMode.getRuntime() < seconds){if(!myOpMode.opModeIsActive()){return;}}
+    }
+
+    @SuppressLint("DefaultLocale")
+    public String getAllAprilTagInfo() {
+        List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
+
+        if (detections == null || detections.isEmpty()) {
+            return "No AprilTags detected.";
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        for (AprilTagDetection tag : detections) {
+
+            if (tag == null) continue;
+            if (tag.ftcPose == null) continue;
+
+            double distanceTiles = tag.ftcPose.range / 24.0;
+            double bearingDeg = tag.ftcPose.bearing;
+
+            String direction =
+                    (bearingDeg > 2) ? " (right)" :
+                            (bearingDeg < -2) ? " (left)" : " (centered)";
+
+            sb.append(String.format(
+                    "Tag %d: %.2f tiles away, %.1f°%s\n",
+                    tag.id, distanceTiles, bearingDeg, direction
+            ));
+        }
+
+        if (sb.length() == 0)
+            return "Tags detected but no usable pose data.";
+
+        return sb.toString();
+    }
+
+
+    public void lockAndLoad(boolean buttonPress, int target, int offset) {
+        if (!buttonPress) return;
+        if (!myOpMode.opModeIsActive()) return;
+
+        while (myOpMode.opModeIsActive()) {
+
+            List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
+
+            if (detections == null || detections.isEmpty()) {
+                allDrive(0, 0, 0);
+                break;
+            }
+
+            AprilTagDetection targetTag = null;
+
+            for (AprilTagDetection tag : detections) {
+                if (tag != null && tag.id == target && tag.ftcPose != null) {
+                    targetTag = tag;
+                    break;
+                }
+            }
+
+            // No tag visible anymore
+            if (targetTag == null) {
+                allDrive(0, 0, 0);
+                break;
+            }
+
+            double bearing = targetTag.ftcPose.bearing;
+
+            // Close enough
+            double toleranceL = -1+offset;
+            double toleranceR = -1-offset;
+            if (Math.abs(bearing) <= toleranceR && toleranceL <= Math.abs(bearing)) {
+                allDrive(0, 0, 0);
+                break;
+            }
+
+            // Smooth proportional turning
+            double minPower = 0.12;
+            double maxPower = 0.25;
+
+            double turnPower = (Math.abs(bearing) / 15.0) * maxPower;
+            turnPower = Math.min(Math.max(turnPower, minPower), maxPower);
+
+            if (bearing < 0) turnPower = -turnPower;
+
+            allDrive(0, 0, turnPower);
+        }
+
+        allDrive(0, 0, 0);
+    }
+
+    public void updateOdometry() {
+
+        // --- Read current motor encoders ---
+        double fl = front_left.getCurrentPosition();
+        double fr = front_right.getCurrentPosition();
+        double bl = back_left.getCurrentPosition();
+        double br = back_right.getCurrentPosition();
+
+        // --- Compute delta since last update ---
+        double dFL = fl - lastFL;
+        double dFR = fr - lastFR;
+        double dBL = bl - lastBL;
+        double dBR = br - lastBR;
+
+        // Save for next call
+        lastFL = fl;
+        lastFR = fr;
+        lastBL = bl;
+        lastBR = br;
+
+        // --- Convert ticks to robot movement in inches ---
+        // Your value: 1 tile = 8000 ticks
+        double ticksPerTile = ENCODER_TILE;
+
+        double forward = (-(dFL + dFR + dBL + dBR) / 4.0) / ticksPerTile;   // +Y forward
+        double strafe  = ((-dFL + dFR + dBL - dBR) / 4.0) / ticksPerTile;   // +X right
+
+        // --- Get heading from IMU ---
+        headingDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+        double headingRad = Math.toRadians(headingDeg);
+
+        // --- Convert robot-relative movement into field-relative movement ---
+        double fieldDX = forward * Math.sin(headingRad) + strafe * Math.cos(headingRad);
+        double fieldDY = forward * Math.cos(headingRad) - strafe * Math.sin(headingRad);
+
+        // --- Update global position ---
+        globalX += fieldDX;
+        globalY += fieldDY;
     }
 
 
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//           ⣿⣿⣿⣿⣿⣿⡿⠛⣛⣛⣛⣛⣛⣛⣛⣛⣛⣛⡛⠛⠿⠿⢿⣿⣿⣿⣿⣿⣿
-//           ⣿⣿⣿⣿⡿⢃⣴⣿⠿⣻⢽⣲⠿⠭⠭⣽⣿⣓⣛⣛⣓⣲⣶⣢⣍⠻⢿⣿⣿
-//           ⣿⣿⣿⡿⢁⣾⣿⣵⡫⣪⣷⠿⠿⢿⣷⣹⣿⣿⣿⢲⣾⣿⣾⡽⣿⣷⠈⣿⣿
-//           ⣿⣿⠟⠁⣚⣿⣿⠟⡟⠡⠀⠀⠀⠶⣌⠻⣿⣿⠿⠛⠉⠉⠉⢻⣿⣿⠧⡙⢿
-//           ⡿⢡⢲⠟⣡⡴⢤⣉⣛⠛⣋⣥⣿⣷⣦⣾⣿⣿⡆⢰⣾⣿⠿⠟⣛⡛⢪⣎⠈
-//           ⣧⢸⣸⠐⣛⡁⢦⣍⡛⠿⢿⣛⣿⡍⢩⠽⠿⣿⣿⡦⠉⠻⣷⣶⠇⢻⣟⠟⢀
-//           ⣿⣆⠣⢕⣿⣷⡈⠙⠓⠰⣶⣤⣍⠑⠘⠾⠿⠿⣉⣡⡾⠿⠗⡉⡀⠘⣶⢃⣾
-//           ⣿⣿⣷⡈⢿⣿⣿⣌⠳⢠⣄⣈⠉⠘⠿⠿⠆⠶⠶⠀⠶⠶⠸⠃⠁⠀⣿⢸⣿
-//           ⣿⣿⣿⣷⡌⢻⣿⣿⣧⣌⠻⢿⢃⣷⣶⣤⢀⣀⣀⢀⣀⠀⡀⠀⠀⢸⣿⢸⣿
-//           ⣿⣿⣿⣿⣿⣦⡙⠪⣟⠭⣳⢦⣬⣉⣛⠛⠘⠿⠇⠸⠋⠘⣁⣁⣴⣿⣿⢸⣿
-//           ⣿⣿⣿⣿⣿⣿⣿⣷⣦⣉⠒⠭⣖⣩⡟⠛⣻⣿⣿⣿⣿⣿⣟⣫⣾⢏⣿⠘⣿
-//           ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣍⡛⠿⠿⣶⣶⣿⣿⣿⣿⣿⣾⣿⠟⣰⣿
-//           ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣶⣶⣤⣭⣍⣉⣛⣋⣭⣥⣾⣿⣿

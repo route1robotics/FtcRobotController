@@ -44,29 +44,36 @@ public class MD25 extends LinearOpMode {
         double targetPower = 0;
         double strafePower = 0;
         double turnPower = 0;
-        double ferrisCode = 0;
-        boolean negFerrisCode = false;
-        boolean resetFerris = false;
         double nuclearLaunchCodes = 0;
-        boolean armServoThingyIDK = false;
-        boolean mandibleButton = false;
+        boolean mandibleOpen = false;
+        boolean mandibleClose = false;
+        boolean opDpadUp = false;
+        boolean opDpadDown = false;
+        String alliance = "Red";
+        boolean targetSystem = false;
+        boolean buttonX = false;
+        boolean mandibleHalf = false;
+        double ferrisRotate = 0;
+        boolean ferrisQuarterTurn = false;
+
+
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
+            robot.updateOdometry();
 
-            telemetry.addData("Front Left", robot.frontLeftPosition());
-            telemetry.addData("Front Right", robot.frontRightPosition());
-            telemetry.addData("Back Left", robot.backLeftPosition());
-            telemetry.addData("Back Right", robot.backRightPosition());
-            telemetry.addData("Obelisk ID Code",robot.procureAprilTagList(1));
-            telemetry.addData("Blue Zone ID Code",robot.procureAprilTagList(0));
-            telemetry.addData("Red Zone ID Code",robot.procureAprilTagList(2));
-            telemetry.addData("Colour Hue in Degrees",robot.getColorData());
-            telemetry.addData("Current hue",robot.getColorHue());
-            telemetry.addData("X Rotation",robot.imuRecorder(0));
-            telemetry.addData("Y Rotation",robot.imuRecorder(1));
-            telemetry.addData("Z Rotation",robot.imuRecorder(2));
-            telemetry.addData("Mandible State",robot.grab(mandibleButton));
+            telemetry.addData("Front Left",             robot.frontLeftPosition());
+            telemetry.addData("Front Right",            robot.frontRightPosition());
+            telemetry.addData("Back Left",              robot.backLeftPosition());
+            telemetry.addData("Back Right",             robot.backRightPosition());
+            telemetry.addData("Obelisk ID Code",        robot.procureAprilTagList(1));
+            telemetry.addData("Blue Zone ID Code",      robot.procureAprilTagList(0));
+            telemetry.addData("Red Zone ID Code",       robot.procureAprilTagList(2));
+            telemetry.addData("X pos",                  robot.globalX);
+            telemetry.addData("Y pos",                  robot.globalY);
+            telemetry.addData("Heading",                robot.headingDeg);
+            telemetry.addData("AprilTag info",          robot.getAllAprilTagInfo());
+            telemetry.addData("launch power",           robot.GetLaunchPower());
             telemetry.update();
 
             //DRIVER CONTROLLER-----------------------------------------------------
@@ -75,18 +82,50 @@ public class MD25 extends LinearOpMode {
             turnPower = -this.gamepad1.right_stick_x * 0.8;
             robot.driveRobot(targetPower, strafePower, turnPower);
 
+            // targeting / team setting
+            if (this.gamepad1.x) {
+                alliance = "Blue";
+            }
+            if (this.gamepad1.b) {
+                alliance = "Red";
+            }
+            targetSystem = this.gamepad1.a;
+            if (alliance.equals("Blue")) {
+                robot.lockAndLoad(targetSystem, 20, 6);
+            }
+            else {
+                robot.lockAndLoad(targetSystem, 24, 4);
+            }
+
+
             //OPERATOR CONTROLLER---------------------------------------------------
-            //Triggers / Bumpers
-            ferrisCode = this.gamepad2.left_trigger;
+
+            //Triggers / Bumpers / Sticks
             nuclearLaunchCodes = this.gamepad2.right_trigger;
-            negFerrisCode = this.gamepad2.left_bumper;
-            resetFerris = this.gamepad2.right_bumper;
-            robot.ferris(ferrisCode, negFerrisCode, resetFerris); // l trigger, both bumpers
-            robot.launch(nuclearLaunchCodes); // r trigger
+            ferrisRotate = this.gamepad2.left_stick_y;
+            robot.ferris(ferrisRotate);
+            robot.launch(nuclearLaunchCodes);
+            ferrisQuarterTurn = this.gamepad2.left_bumper;
+            //robot.ferrisQuarter(ferrisQuarterTurn);
+
+            //D-Pad
+            opDpadUp = this.gamepad2.dpad_up;
+            opDpadDown = this.gamepad2.dpad_down;
+            robot.LaunchPowerUp(opDpadUp);
+            robot.LaunchPowerDown(opDpadDown);
+
             //Letter Buttons
-            armServoThingyIDK = this.gamepad2.a;
-            mandibleButton = this.gamepad2.b;
-            robot.grab(mandibleButton); // b
+            mandibleOpen = this.gamepad2.a;
+            mandibleClose = this.gamepad2.b;
+            mandibleHalf = this.gamepad2.y;
+            robot.mandOpen(mandibleOpen);
+            robot.mandClose(mandibleClose);
+            robot.mandHalf(mandibleHalf);
+            buttonX = this.gamepad2.x;
+
+            robot.LaunchKicker(buttonX);
+            robot.ReturnKicker(!buttonX);
+
         }
     }
 }
