@@ -37,6 +37,7 @@ public class MD25 extends LinearOpMode {
 
         // Wait for the game to start (driver presses PLAY)
         waitForStart();
+        robot.driveCoast();
 
         this.resetRuntime();
 
@@ -55,12 +56,12 @@ public class MD25 extends LinearOpMode {
         boolean mandibleHalf = false;
         double ferrisRotate = 0;
         boolean ferrisQuarterTurn = false;
+        boolean prettycolor = false;
 
 
 
         // run until the end of the match (driver presses STOP)
         while (opModeIsActive()) {
-            robot.updateOdometry();
 
             telemetry.addData("Front Left",             robot.frontLeftPosition());
             telemetry.addData("Front Right",            robot.frontRightPosition());
@@ -69,17 +70,19 @@ public class MD25 extends LinearOpMode {
             telemetry.addData("Obelisk ID Code",        robot.procureAprilTagList(1));
             telemetry.addData("Blue Zone ID Code",      robot.procureAprilTagList(0));
             telemetry.addData("Red Zone ID Code",       robot.procureAprilTagList(2));
-            telemetry.addData("X pos",                  robot.globalX);
-            telemetry.addData("Y pos",                  robot.globalY);
-            telemetry.addData("Heading",                robot.headingDeg);
+            //telemetry.addData("X pos",                  robot.globalX);
+            //telemetry.addData("Y pos",                  robot.globalY);
+            //telemetry.addData("Heading",                robot.headingDeg);
             telemetry.addData("AprilTag info",          robot.getAllAprilTagInfo());
             telemetry.addData("launch power",           robot.GetLaunchPower());
             telemetry.update();
 
+
+
             //DRIVER CONTROLLER-----------------------------------------------------
             targetPower = -this.gamepad1.left_stick_y;
-            strafePower = (this.gamepad1.left_trigger - this.gamepad1.right_trigger) * 0.8;//this.gamepad1.left_stick_x;//
-            turnPower = -this.gamepad1.right_stick_x * 0.8;
+            strafePower = (this.gamepad1.left_trigger - this.gamepad1.right_trigger) * 1;//this.gamepad1.left_stick_x;//
+            turnPower = -this.gamepad1.right_stick_x * 1;
             robot.driveRobot(targetPower, strafePower, turnPower);
 
             // targeting / team setting
@@ -98,15 +101,20 @@ public class MD25 extends LinearOpMode {
             }
 
 
+            prettycolor = this.gamepad1.left_stick_button;
+            //robot.gradient(prettycolor);
+            robot.kickstand(this.gamepad1.dpad_down,this.gamepad1.dpad_up);
+
             //OPERATOR CONTROLLER---------------------------------------------------
 
             //Triggers / Bumpers / Sticks
             nuclearLaunchCodes = this.gamepad2.right_trigger;
             ferrisRotate = this.gamepad2.left_stick_y;
-            robot.ferris(ferrisRotate);
+            robot.ferrisW(ferrisRotate);
             robot.launch(nuclearLaunchCodes);
             ferrisQuarterTurn = this.gamepad2.left_bumper;
             //robot.ferrisQuarter(ferrisQuarterTurn);
+
 
             //D-Pad
             opDpadUp = this.gamepad2.dpad_up;
@@ -118,6 +126,14 @@ public class MD25 extends LinearOpMode {
             mandibleOpen = this.gamepad2.a;
             mandibleClose = this.gamepad2.b;
             mandibleHalf = this.gamepad2.y;
+
+            robot.thisLittleLightOfMine(
+                    0,                      // color mode (0 = mandible-based)
+                    nuclearLaunchCodes,     // gamepad2 right trigger
+                    robot.mandState         // current mandible state
+            );
+
+
             robot.mandOpen(mandibleOpen);
             robot.mandClose(mandibleClose);
             robot.mandHalf(mandibleHalf);

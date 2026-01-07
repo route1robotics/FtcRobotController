@@ -27,6 +27,7 @@ public class Auto25 extends LinearOpMode {
         robot.init();
         String curAuto = "launch";
         String curAlly = "red";
+        boolean sorting = false;
         int toWait = 0;
         final double ferrisTurnTime = (double) 10.5 / 12;
 
@@ -40,7 +41,7 @@ public class Auto25 extends LinearOpMode {
                curAuto = "drive";
            }
            else if (gamepad1.b) {
-               curAuto = "launch";
+               curAuto = "launchNear";
            }
            else if (gamepad1.y) {
                curAuto = "launchFar";
@@ -67,11 +68,20 @@ public class Auto25 extends LinearOpMode {
                curAlly = "red";
            }
 
+           // Sort?
+            if (gamepad1.left_trigger > 0.1) {
+                sorting = true;
+            } else if (gamepad1.right_trigger > 0.1) {
+                sorting = false;
+            }
+
            //teamElementDetection.setAlliance(curAlliance);
            telemetry.addData("Select Auto (Gamepad1 B = Launch from goal, Gamepad1 A = Drive, Gamepad1 Y = Launch from back)", "");
+           telemetry.addData("L trigger to sort, R trigger to not", "");
            telemetry.addData("Press Gamepad1 Right/Left Bumper to increment wait time in seconds", "");
            telemetry.addData("Select Alliance (Dpad Left = Blue, Dpad Right = Red", "");
            telemetry.addData("Current Auto Selected", curAuto.toUpperCase());
+           telemetry.addData("Sorting?", sorting);
            telemetry.addData("Delay time", toWait);
            telemetry.addData("Current Alliance Selected", curAlly.toUpperCase());
 
@@ -82,10 +92,9 @@ public class Auto25 extends LinearOpMode {
 
         telemetry.update();
 
-        if (curAuto.equals("launch")) {
+        if (curAuto.equals("launchNear")) {
             robot.ferrisReset(true);
             robot.setLaunchPower(0.65);
-
             // tack on a wait time if needed
             robot.waitSafe(toWait);
             // continuously spin launcher
@@ -94,29 +103,34 @@ public class Auto25 extends LinearOpMode {
             robot.DriveForward(0.5, 1.25);
             // get up to speed
             robot.waitSafe(3);
-            // launch a ball
-            robot.LaunchKicker(true);
-            robot.waitSafe(1);
-            robot.ReturnKicker(true);
-            robot.waitSafe(0.5);
-            // close mandibles
-            robot.mandClose(true);
-            // short pause
-            robot.waitSafe(ferrisTurnTime);
-            // rotate ferris a quarter turn
-            robot.ferrisQuarter(true);
-            robot.ferrisQuarter(false);
-            // launch a ball
-            robot.LaunchKicker(true);
-            robot.waitSafe(1);
-            robot.ReturnKicker(true);
-            robot.waitSafe(1);
-            // rotate ferris a quarter turn
-            robot.ferrisQuarter(true);
-            robot.ferrisQuarter(false);
-            robot.LaunchKicker(true);
-            robot.waitSafe(1);
-            robot.ReturnKicker(true);
+            if (!sorting) {
+                // launch a ball
+                robot.LaunchKicker(true);
+                robot.waitSafe(1);
+                robot.ReturnKicker(true);
+                robot.waitSafe(0.5);
+                // close mandibles
+                robot.mandClose(true);
+                // short pause
+                robot.waitSafe(ferrisTurnTime);
+                // rotate ferris a quarter turn
+                robot.ferrisQuarter(true);
+                robot.ferrisQuarter(false);
+                // launch a ball
+                robot.LaunchKicker(true);
+                robot.waitSafe(1);
+                robot.ReturnKicker(true);
+                robot.waitSafe(1);
+                // rotate ferris a quarter turn
+                robot.ferrisQuarter(true);
+                robot.ferrisQuarter(false);
+                robot.LaunchKicker(true);
+                robot.waitSafe(1);
+                robot.ReturnKicker(true);
+            }
+            else {
+                robot.sortingLaunch(robot.procureAprilTagList(1));
+            }
             robot.waitSafe(0.5);
             // stop launcher
             robot.launch(0);
@@ -124,7 +138,7 @@ public class Auto25 extends LinearOpMode {
         } else if (curAuto.equals("launchFar")) {
             robot.ferrisReset(true);
             robot.setLaunchPower(0.80);
-            robot.DriveForward(-0.3, 0.3);
+            robot.DriveForward(-0.3, 0.15);
             if (curAlly.equals("red")) {
                 robot.lockAndLoad(true, 24, 4);
             }
@@ -140,63 +154,75 @@ public class Auto25 extends LinearOpMode {
             robot.waitSafe(0.5);
             // continuously spin launcher
             robot.launch(1);
+            if (curAlly.equals("red")) {
+                robot.lockAndLoad(true, 24, 4);
+            }
+            else {
+                robot.lockAndLoad(true, 20, 6);
+            }
             robot.waitSafe(3);
-            robot.LaunchKicker(true);
-            robot.waitSafe(1);
-            robot.ReturnKicker(true);
-            robot.waitSafe(0.5);
-            // close mandibles
-            robot.mandClose(true);
-            // short pause
-            robot.waitSafe(ferrisTurnTime);
-            // rotate ferris a quarter turn
-            if (curAlly.equals("red")) {
-                robot.lockAndLoad(true, 24, 4);
+            if (!sorting) {
+                robot.LaunchKicker(true);
+                robot.waitSafe(1);
+                robot.ReturnKicker(true);
+                robot.waitSafe(0.5);
+                // close mandibles
+                robot.mandClose(true);
+                // short pause
+                robot.waitSafe(ferrisTurnTime);
+                // rotate ferris a quarter turn
+                if (curAlly.equals("red")) {
+                    robot.lockAndLoad(true, 24, 4);
+                } else {
+                    robot.lockAndLoad(true, 20, 6);
+                }
+                if (curAlly.equals("red")) {
+                    robot.lockAndLoad(true, 24, 4);
+                } else {
+                    robot.lockAndLoad(true, 20, 6);
+                }
+                robot.ferrisQuarter(true);
+                robot.ferrisQuarter(false);
+                robot.waitSafe(0.5);
+                // launch a ball
+                robot.LaunchKicker(true);
+                robot.waitSafe(1);
+                robot.ReturnKicker(true);
+                robot.waitSafe(1);
+                // rotate ferris a quarter turn
+                if (curAlly.equals("red")) {
+                    robot.lockAndLoad(true, 24, 4);
+                } else {
+                    robot.lockAndLoad(true, 20, 6);
+                }
+                if (curAlly.equals("red")) {
+                    robot.lockAndLoad(true, 24, 4);
+                } else {
+                    robot.lockAndLoad(true, 20, 6);
+                }
+                robot.ferrisQuarter(true);
+                robot.ferrisQuarter(false);
+                robot.waitSafe(1.5);
+                robot.LaunchKicker(true);
+                robot.waitSafe(1);
+                robot.ReturnKicker(true);
+                robot.waitSafe(0.5);
+                // rotate ferris a quarter turn
+                robot.ferrisQuarter(true);
+                robot.ferrisQuarter(false);
             }
             else {
-                robot.lockAndLoad(true, 20, 6);
+                robot.sortingLaunch(robot.procureAprilTagList(1));
             }
-            if (curAlly.equals("red")) {
-                robot.lockAndLoad(true, 24, 4);
-            }
-            else {
-                robot.lockAndLoad(true, 20, 6);
-            }
-            robot.ferrisQuarter(true);
-            robot.ferrisQuarter(false);
-            robot.waitSafe(0.5);
-            // launch a ball
-            robot.LaunchKicker(true);
-            robot.waitSafe(1);
-            robot.ReturnKicker(true);
-            robot.waitSafe(1);
-            // rotate ferris a quarter turn
-            if (curAlly.equals("red")) {
-                robot.lockAndLoad(true, 24, 4);
-            }
-            else {
-                robot.lockAndLoad(true, 20, 6);
-            }
-            if (curAlly.equals("red")) {
-                robot.lockAndLoad(true, 24, 4);
-            }
-            else {
-                robot.lockAndLoad(true, 20, 6);
-            }
-            robot.ferrisQuarter(true);
-            robot.ferrisQuarter(false);
-            robot.waitSafe(1.5);
-            robot.LaunchKicker(true);
-            robot.waitSafe(1);
-            robot.ReturnKicker(true);
-            robot.waitSafe(0.5);
-            // rotate ferris a quarter turn
-            robot.ferrisQuarter(true);
-            robot.ferrisQuarter(false);
             // stop launcher
             robot.launch(0);
             robot.setLaunchPower(0.65);
-            robot.DriveForward(-0.3, 0.5);
+            if (curAlly.equals("red")) {
+                robot.DriveStrafeLeft(0.3, 1);
+            }
+            else {
+                robot.DriveStrafeRight(0.3, 1);
+            }
         } else {
             robot.DriveForward(-0.3, 1);
         }

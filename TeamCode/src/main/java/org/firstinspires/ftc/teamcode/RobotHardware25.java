@@ -49,9 +49,12 @@ public class RobotHardware25 {
     private IMU imu = null;
     private DcMotor ferris = null;
     private DcMotor launcher = null;
+    private DcMotor arm_one = null;
+    private DcMotor arm_two = null;
     private Servo l_mandible = null;
     private Servo r_mandible = null;
     private Servo kicker = null;
+    private Servo rgb_light = null;
 
     // Define Drive constants.  Make them public so they CAN be used by the calling OpMode
     private int ENCODER_TILE = 8000;
@@ -97,28 +100,32 @@ public class RobotHardware25 {
     public void init()    {
         // Define and Initialize Motors (note: need to use reference to actual OpMode).
         control_Hub = myOpMode.hardwareMap.get(Blinker.class, "Control Hub");
-        back_left    = myOpMode.hardwareMap.get(DcMotor.class, "back left");   // 0
-        back_right   = myOpMode.hardwareMap.get(DcMotor.class, "back right");  // 1
-        front_left   = myOpMode.hardwareMap.get(DcMotor.class, "front left");  // 2
-        front_right  = myOpMode.hardwareMap.get(DcMotor.class, "front right"); // 3
-        //colorSensor = myOpMode.hardwareMap.get(ColorSensor.class, "color sensor"); // I2C 1
-        imu = myOpMode.hardwareMap.get(IMU.class, "imu"); // I2C 0
-        ferris = myOpMode.hardwareMap.get(DcMotor.class, "ferris"); // Expansion Hub, motor 0
-        launcher = myOpMode.hardwareMap.get(DcMotor.class, "launcher"); // Expansion Hub, motor 1
-        l_mandible = myOpMode.hardwareMap.get(Servo.class, "left claw"); // Expansion Hub, Servo 0
-        r_mandible = myOpMode.hardwareMap.get(Servo.class, "right claw"); // Control Hub, Servo 5
-        kicker =  myOpMode.hardwareMap.get(Servo.class, "kicker"); // Expansion Hub, Servo 1
+        back_left   = myOpMode.hardwareMap.get(DcMotor.class, "back left");   // 0
+        back_right  = myOpMode.hardwareMap.get(DcMotor.class, "back right");  // 1
+        front_left  = myOpMode.hardwareMap.get(DcMotor.class, "front left");  // 2
+        front_right = myOpMode.hardwareMap.get(DcMotor.class, "front right"); // 3
+        //colorSensor = myOpMode.hardwareMap.get(ColorSensor.class, "color sensor");     // I2C 1
+        imu         = myOpMode.hardwareMap.get(IMU.class, "imu");             // I2C 0
+        ferris      = myOpMode.hardwareMap.get(DcMotor.class, "ferris");      // Expansion Hub, motor 0
+        launcher    = myOpMode.hardwareMap.get(DcMotor.class, "launcher");    // Expansion Hub, motor 1
+        l_mandible  = myOpMode.hardwareMap.get(Servo.class, "left claw");     // Expansion Hub, Servo 0
+        r_mandible  = myOpMode.hardwareMap.get(Servo.class, "right claw");    // Control Hub, Servo 5
+        kicker      = myOpMode.hardwareMap.get(Servo.class, "kicker");        // Expansion Hub, Servo 1
+        rgb_light   = myOpMode.hardwareMap.get(Servo.class, "light");         // Control Hub Servo Port 0
+        arm_one     = myOpMode.hardwareMap.get(DcMotor.class, "arm1");
+        arm_two     = myOpMode.hardwareMap.get(DcMotor.class, "arm2");
 
 
         front_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        arm_one.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        arm_two.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        ferris.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
 
-        lastFL = front_left.getCurrentPosition();
-        lastFR = front_right.getCurrentPosition();
-        lastBL = back_left.getCurrentPosition();
-        lastBR = back_right.getCurrentPosition();
+        launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         initializeVisionPortal();
 
@@ -195,20 +202,28 @@ public class RobotHardware25 {
         return idCodes[pos];
     }
 
-    // displays a color (purple or green) given a hue range
-    public float getColorData() {
-        float[] hsvValues = new float[3];
-        //Color.RGBToHSV(colorSensor.red(), colorSensor.green(), colorSensor.blue(), hsvValues);
-
-        return hsvValues[0];
-    }
-
     // mainly for debugging; gives the hue value in degrees the sensor is currently seeing
     public float getColorHue() {
         float[] hsvValues = new float[3];
         //Color.RGBToHSV(colorSensor.red(), colorSensor.green(), colorSensor.blue(), hsvValues);
 
         return hsvValues[0];
+    }
+    // mainly for debugging; gives the hue value in degrees the sensor is currently seeing
+    public float ballKnowledge() {
+        float[] hsvValues = new float[3];
+        int ballColor = 0;
+        Color.RGBToHSV(colorSensor.red(), colorSensor.green(), colorSensor.blue(), hsvValues);
+        if (hsvValues[0] > 110 && hsvValues[0] < 130) {
+            ballColor = 1;
+        }
+        else if (hsvValues[0] > 290 && hsvValues[0] < 310) {
+            ballColor = 2;
+        }
+        else {
+            ballColor = 0;
+        }
+        return ballColor;
     }
 
 
@@ -227,8 +242,6 @@ public class RobotHardware25 {
         front_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         back_left.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         back_right.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        ferris.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        launcher.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
     }
 
 
@@ -451,7 +464,7 @@ public class RobotHardware25 {
     boolean ferrisMoving = false;
     final double ferrisSpeed = 0.3; // Ferris wheel speed
 
-    public void ferris(double stickValue) {
+    public void ferrisW(double stickValue) {
 
         // --- FORWARD ---
         if (stickValue >= 0.05) {
@@ -550,6 +563,7 @@ public class RobotHardware25 {
 //        }
 //    }
 
+    int mandState = 0;
 
     public void mandClose(boolean buttonPress) {
 
@@ -557,6 +571,7 @@ public class RobotHardware25 {
         if (buttonPress) {
             l_mandible.setPosition(0.0);
             r_mandible.setPosition(0.8);
+            mandState = 0;
         }
 
     }
@@ -567,6 +582,7 @@ public class RobotHardware25 {
         if (buttonPress) {
             l_mandible.setPosition(0.15);
             r_mandible.setPosition(0.65);
+            mandState = 1;
         }
 
     }
@@ -577,6 +593,7 @@ public class RobotHardware25 {
 
             l_mandible.setPosition(0.25);
             r_mandible.setPosition(0.5);
+            mandState = 2;
         }
     }
 
@@ -665,98 +682,224 @@ public class RobotHardware25 {
 
 
     public void lockAndLoad(boolean buttonPress, int target, int offset) {
-        if (!buttonPress) return;
-        if (!myOpMode.opModeIsActive()) return;
 
-        while (myOpMode.opModeIsActive()) {
+        if (!buttonPress || !myOpMode.opModeIsActive()) {
+            allDrive(0, 0, 0);
+            return;
+        }
 
-            List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
+        List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
+        if (detections == null || detections.isEmpty()) {
+            allDrive(0, 0, 0);
+            return;
+        }
 
-            if (detections == null || detections.isEmpty()) {
-                allDrive(0, 0, 0);
+        AprilTagDetection targetTag = null;
+        for (AprilTagDetection tag : detections) {
+            if (tag != null && tag.id == target && tag.ftcPose != null) {
+                targetTag = tag;
                 break;
             }
+        }
 
-            AprilTagDetection targetTag = null;
+        if (targetTag == null) {
+            allDrive(0, 0, 0);
+            return;
+        }
 
+        double bearing = targetTag.ftcPose.bearing;
+        double tolerance = 1 + offset;
+
+        if (Math.abs(bearing) <= tolerance) {
+            allDrive(0, 0, 0);   // Locked
+            return;
+        }
+
+        // Proportional turning
+        double minPower = 0.12;
+        double maxPower = 0.25;
+
+        double turnPower = (Math.abs(bearing) / 15.0) * maxPower;
+        turnPower = Math.min(Math.max(turnPower, minPower), maxPower);
+
+        if (bearing < 0) turnPower = -turnPower;
+
+        allDrive(0, 0, turnPower);
+    }
+
+
+    public void sortingLaunch(int idCode) {
+        // GPP
+        if (idCode == 21) {
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+        }
+        // PGP
+        else if (idCode == 22) {
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+        }
+        // PPG
+        else {
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+        }
+    }
+
+
+    public void thisLittleLightOfMine(int color, double triggerValue, int mandibleState) {
+
+        // --- Mandible base color ---
+        double mandibleColor;
+        if (mandibleState == 0) {
+            mandibleColor = 0.28;
+        }
+        else if (mandibleState == 1) {
+            mandibleColor = 0.35;
+        }
+        else {
+            mandibleColor = 0.59;
+        }
+
+        // --- Auto-aim bearing detection ---
+        double bearing = Double.NaN;
+        double tolerance = 1;   // Same base tolerance used by lockAndLoad()
+
+        List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
+        if (detections != null) {
             for (AprilTagDetection tag : detections) {
-                if (tag != null && tag.id == target && tag.ftcPose != null) {
-                    targetTag = tag;
+                if (tag == null || tag.ftcPose == null) continue;
+
+                // Only care about tags 20 and 24
+                if (tag.id == 20 || tag.id == 24) {
+                    bearing = tag.ftcPose.bearing;
                     break;
                 }
             }
-
-            // No tag visible anymore
-            if (targetTag == null) {
-                allDrive(0, 0, 0);
-                break;
-            }
-
-            double bearing = targetTag.ftcPose.bearing;
-
-            // Close enough
-            double toleranceL = -1+offset;
-            double toleranceR = -1-offset;
-            if (Math.abs(bearing) <= toleranceR && toleranceL <= Math.abs(bearing)) {
-                allDrive(0, 0, 0);
-                break;
-            }
-
-            // Smooth proportional turning
-            double minPower = 0.12;
-            double maxPower = 0.25;
-
-            double turnPower = (Math.abs(bearing) / 15.0) * maxPower;
-            turnPower = Math.min(Math.max(turnPower, minPower), maxPower);
-
-            if (bearing < 0) turnPower = -turnPower;
-
-            allDrive(0, 0, turnPower);
         }
 
-        allDrive(0, 0, 0);
+        // --- Aim override (LOCK INDICATOR) ---
+        if (triggerValue >= 0.1 && !Double.isNaN(bearing)) {
+
+            if (bearing <= tolerance && bearing >= -tolerance) {
+                // Centered on tag
+                rgb_light.setPosition(0.45);
+            }
+            else if (bearing > tolerance) {
+                // Tag is to the right
+                rgb_light.setPosition(0.38);
+            }
+            else {
+                // Tag is to the left
+                rgb_light.setPosition(0.33);
+            }
+            return;
+        }
+
+        // --- Color modes ---
+        double time = myOpMode.getRuntime();
+        boolean blinkState = ((int)(time * 2)) % 2 == 0; // ~2 Hz blink
+
+        switch (color) {
+
+            case 0:
+                rgb_light.setPosition(mandibleColor);
+                break;
+
+            case 1:
+                rgb_light.setPosition(blinkState ? mandibleColor : 0.5);
+                break;
+
+            case 2:
+                rgb_light.setPosition(blinkState ? mandibleColor : 0.72);
+                break;
+
+            default:
+                rgb_light.setPosition(mandibleColor);
+                break;
+        }
     }
 
-    public void updateOdometry() {
 
-        // --- Read current motor encoders ---
-        double fl = front_left.getCurrentPosition();
-        double fr = front_right.getCurrentPosition();
-        double bl = back_left.getCurrentPosition();
-        double br = back_right.getCurrentPosition();
 
-        // --- Compute delta since last update ---
-        double dFL = fl - lastFL;
-        double dFR = fr - lastFR;
-        double dBL = bl - lastBL;
-        double dBR = br - lastBR;
-
-        // Save for next call
-        lastFL = fl;
-        lastFR = fr;
-        lastBL = bl;
-        lastBR = br;
-
-        // --- Convert ticks to robot movement in inches ---
-        // Your value: 1 tile = 8000 ticks
-        double ticksPerTile = ENCODER_TILE;
-
-        double forward = (-(dFL + dFR + dBL + dBR) / 4.0) / ticksPerTile;   // +Y forward
-        double strafe  = ((-dFL + dFR + dBL - dBR) / 4.0) / ticksPerTile;   // +X right
-
-        // --- Get heading from IMU ---
-        headingDeg = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
-        double headingRad = Math.toRadians(headingDeg);
-
-        // --- Convert robot-relative movement into field-relative movement ---
-        double fieldDX = forward * Math.sin(headingRad) + strafe * Math.cos(headingRad);
-        double fieldDY = forward * Math.cos(headingRad) - strafe * Math.sin(headingRad);
-
-        // --- Update global position ---
-        globalX += fieldDX;
-        globalY += fieldDY;
+    public void gradient (boolean button) {
+        if (button) {
+           for (double pos = 0.278; pos <= 0.722; pos += 0.05) {
+               rgb_light.setPosition(pos);
+           }
+        }
     }
 
+    public void kickstand (boolean down,boolean up) {
+        if (down) {
+            arm_one.setPower(-0.5); // negative?
+            arm_two.setPower(-0.5);
+        }
+        else if (up) {
+            arm_one.setPower(0.5); // negative
+            arm_two.setPower(0.5);
+        }
+        else {
+            arm_one.setPower(0);
+            arm_two.setPower(0);
+        }
+    }
 
 
 }
