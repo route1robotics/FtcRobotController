@@ -34,6 +34,7 @@ public class MD25 extends LinearOpMode {
         telemetry.update();
 
         robot.init();
+        robot.initializeVisionPortal((byte) 1);
 
         // Wait for the game to start (driver presses PLAY)
         waitForStart();
@@ -55,7 +56,6 @@ public class MD25 extends LinearOpMode {
         boolean buttonX = false;
         boolean mandibleHalf = false;
         double ferrisRotate = 0;
-        boolean ferrisQuarterTurn = false;
         boolean prettycolor = false;
 
 
@@ -67,12 +67,13 @@ public class MD25 extends LinearOpMode {
             telemetry.addData("Front Right",            robot.frontRightPosition());
             telemetry.addData("Back Left",              robot.backLeftPosition());
             telemetry.addData("Back Right",             robot.backRightPosition());
-            telemetry.addData("Obelisk ID Code",        robot.procureAprilTagList(1));
-            telemetry.addData("Blue Zone ID Code",      robot.procureAprilTagList(0));
-            telemetry.addData("Red Zone ID Code",       robot.procureAprilTagList(2));
-            //telemetry.addData("X pos",                  robot.globalX);
-            //telemetry.addData("Y pos",                  robot.globalY);
-            //telemetry.addData("Heading",                robot.headingDeg);
+            telemetry.addData("Obelisk ID Code",        robot.getVisibleAprilTagID(21, 22, 23));
+            telemetry.addData("motor power (bl)", robot.motorTelebl());
+            telemetry.addData("motor power (br)", robot.motorTelebr());
+            telemetry.addData("motor power (fl)", robot.motorTelefl());
+            telemetry.addData("motor power (fr)", robot.motorTelefr());
+            telemetry.addData("left color",             robot.getColorHueLeft());
+            telemetry.addData("Launching near?",        robot.LaunchDistanceNear);
             telemetry.addData("AprilTag info",          robot.getAllAprilTagInfo());
             telemetry.addData("launch power",           robot.GetLaunchPower());
             telemetry.update();
@@ -102,7 +103,7 @@ public class MD25 extends LinearOpMode {
 
 
             prettycolor = this.gamepad1.left_stick_button;
-            //robot.gradient(prettycolor);
+            robot.gradient(prettycolor);
             robot.kickstand(this.gamepad1.dpad_down,this.gamepad1.dpad_up);
 
             //OPERATOR CONTROLLER---------------------------------------------------
@@ -112,8 +113,9 @@ public class MD25 extends LinearOpMode {
             ferrisRotate = this.gamepad2.left_stick_y;
             robot.ferrisW(ferrisRotate);
             robot.launch(nuclearLaunchCodes);
-            ferrisQuarterTurn = this.gamepad2.left_bumper;
-            //robot.ferrisQuarter(ferrisQuarterTurn);
+            robot.ferrisQuarter(this.gamepad2.left_trigger >= 0.1);
+            //robot.mandAndWheel(this.gamepad2.left_bumper);
+            robot.quickLaunch(this.gamepad2.right_bumper);
 
 
             //D-Pad
@@ -121,6 +123,7 @@ public class MD25 extends LinearOpMode {
             opDpadDown = this.gamepad2.dpad_down;
             robot.LaunchPowerUp(opDpadUp);
             robot.LaunchPowerDown(opDpadDown);
+            robot.setPowerDistance(this.gamepad2.dpad_left, this.gamepad2.dpad_right);
 
             //Letter Buttons
             mandibleOpen = this.gamepad2.a;
@@ -128,11 +131,10 @@ public class MD25 extends LinearOpMode {
             mandibleHalf = this.gamepad2.y;
 
             robot.thisLittleLightOfMine(
-                    0,                      // color mode (0 = mandible-based)
-                    nuclearLaunchCodes,     // gamepad2 right trigger
-                    robot.mandState         // current mandible state
+                    robot.proxy(),  // color mode (0 = mandible-based)
+                    nuclearLaunchCodes,             // gamepad2 right trigger
+                    robot.mandState                 // current mandible state
             );
-
 
             robot.mandOpen(mandibleOpen);
             robot.mandClose(mandibleClose);
@@ -141,6 +143,12 @@ public class MD25 extends LinearOpMode {
 
             robot.LaunchKicker(buttonX);
             robot.ReturnKicker(!buttonX);
+
+
+
+            robot.lockAndLoadAuto(5, this.gamepad2.right_stick_button, 24, 4);
+
+
 
         }
     }

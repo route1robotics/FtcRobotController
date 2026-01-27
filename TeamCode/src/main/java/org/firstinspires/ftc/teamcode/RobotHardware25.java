@@ -3,15 +3,19 @@ package org.firstinspires.ftc.teamcode;
 import android.annotation.SuppressLint;
 import android.graphics.Color;
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
+import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Quaternion;
 import org.firstinspires.ftc.vision.VisionPortal;
 import org.firstinspires.ftc.vision.apriltag.AprilTagDetection;
 import org.firstinspires.ftc.vision.apriltag.AprilTagProcessor;
+
+import com.qualcomm.hardware.rev.RevColorSensorV3;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.hardware.Blinker;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.DistanceSensor;
 import com.qualcomm.robotcore.hardware.TouchSensor;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.hardware.CRServo;
@@ -45,7 +49,8 @@ public class RobotHardware25 {
     private DcMotor front_left = null;
     private DcMotor front_right = null;
 
-    private ColorSensor colorSensor = null;
+    private RevColorSensorV3 l_color = null;
+    private RevColorSensorV3 r_color = null;
     private IMU imu = null;
     private DcMotor ferris = null;
     private DcMotor launcher = null;
@@ -54,7 +59,8 @@ public class RobotHardware25 {
     private Servo l_mandible = null;
     private Servo r_mandible = null;
     private Servo kicker = null;
-    private Servo rgb_light = null;
+    public Servo rgb_light = null;
+    private DistanceSensor proxy = null;
 
     // Define Drive constants.  Make them public so they CAN be used by the calling OpMode
     private int ENCODER_TILE = 8000;
@@ -72,19 +78,8 @@ public class RobotHardware25 {
     private double eq3Slope = (1 - Y2)/(1 - X2);
     private double eq3Inter = 1 - eq3Slope;  //Intercept
 
-    private int[] idCodes = {0,0,0};
-
-    // Robot position relative to start (units = tiles)
-    public double globalX = 0.0;
-    public double globalY = 0.0;
-
-    // Robot heading (degrees)
-    public double headingDeg = 0.0;
-
-    // Store last encoder positions
-    double lastFL = 0, lastFR = 0, lastBL = 0, lastBR = 0;
-
-
+    public int[] idCodes = {0,0,0};
+    public boolean LaunchDistanceNear = false; //true = NEAR, false = FAR
 
     // Define a constructor that allows the OpMode to pass a reference to itself.
     public RobotHardware25(LinearOpMode opmode) {
@@ -100,18 +95,19 @@ public class RobotHardware25 {
     public void init()    {
         // Define and Initialize Motors (note: need to use reference to actual OpMode).
         control_Hub = myOpMode.hardwareMap.get(Blinker.class, "Control Hub");
-        back_left   = myOpMode.hardwareMap.get(DcMotor.class, "back left");   // 0
-        back_right  = myOpMode.hardwareMap.get(DcMotor.class, "back right");  // 1
-        front_left  = myOpMode.hardwareMap.get(DcMotor.class, "front left");  // 2
-        front_right = myOpMode.hardwareMap.get(DcMotor.class, "front right"); // 3
-        //colorSensor = myOpMode.hardwareMap.get(ColorSensor.class, "color sensor");     // I2C 1
-        imu         = myOpMode.hardwareMap.get(IMU.class, "imu");             // I2C 0
-        ferris      = myOpMode.hardwareMap.get(DcMotor.class, "ferris");      // Expansion Hub, motor 0
-        launcher    = myOpMode.hardwareMap.get(DcMotor.class, "launcher");    // Expansion Hub, motor 1
-        l_mandible  = myOpMode.hardwareMap.get(Servo.class, "left claw");     // Expansion Hub, Servo 0
-        r_mandible  = myOpMode.hardwareMap.get(Servo.class, "right claw");    // Control Hub, Servo 5
-        kicker      = myOpMode.hardwareMap.get(Servo.class, "kicker");        // Expansion Hub, Servo 1
-        rgb_light   = myOpMode.hardwareMap.get(Servo.class, "light");         // Control Hub Servo Port 0
+        back_left   = myOpMode.hardwareMap.get(DcMotor.class, "back left");             // 0
+        back_right  = myOpMode.hardwareMap.get(DcMotor.class, "back right");            // 1
+        front_left  = myOpMode.hardwareMap.get(DcMotor.class, "front left");            // 2
+        front_right = myOpMode.hardwareMap.get(DcMotor.class, "front right");           // 3
+        l_color     = myOpMode.hardwareMap.get(RevColorSensorV3.class, "left color");   // I2C 1
+        r_color     = myOpMode.hardwareMap.get(RevColorSensorV3.class, "right color");  // I2C 1
+        imu         = myOpMode.hardwareMap.get(IMU.class, "imu");                       // I2C 0
+        ferris      = myOpMode.hardwareMap.get(DcMotor.class, "ferris");                // Expansion Hub, motor 0
+        launcher    = myOpMode.hardwareMap.get(DcMotor.class, "launcher");              // Expansion Hub, motor 1
+        l_mandible  = myOpMode.hardwareMap.get(Servo.class, "left claw");               // Expansion Hub, Servo 0
+        r_mandible  = myOpMode.hardwareMap.get(Servo.class, "right claw");              // Control Hub, Servo 5
+        kicker      = myOpMode.hardwareMap.get(Servo.class, "kicker");                  // Expansion Hub, Servo 1
+        rgb_light   = myOpMode.hardwareMap.get(Servo.class, "light");                   // Control Hub Servo Port 0
         arm_one     = myOpMode.hardwareMap.get(DcMotor.class, "arm1");
         arm_two     = myOpMode.hardwareMap.get(DcMotor.class, "arm2");
 
@@ -127,7 +123,7 @@ public class RobotHardware25 {
 
         launcher.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        initializeVisionPortal();
+        //initializeVisionPortal(); =============================================================================================================================
 
         myOpMode.telemetry.addData(">", "Hardware Initialized");
         myOpMode.telemetry.update();
@@ -138,7 +134,7 @@ public class RobotHardware25 {
     AprilTagProcessor.Builder myAprilTagProcessorBuilder;
     AprilTagProcessor myAprilTagProcessor;
 
-    public void initializeVisionPortal(){
+    public void initializeVisionPortal(byte cameraNum){
 
         //https://ftc-docs.firstinspires.org/en/latest/apriltag/vision_portal/vision_processor_init/vision-processor-init.html
         // Create a new AprilTag Processor Builder object.
@@ -158,8 +154,12 @@ public class RobotHardware25 {
         myVisionPortalBuilder = new VisionPortal.Builder();
 
         // Specify the camera to be used for this VisionPortal.
-        myVisionPortalBuilder.setCamera(myOpMode.hardwareMap.get(WebcamName.class, "Webcam"));      // Other choices are: RC phone camera and "switchable camera name".
-
+        if (cameraNum == 1) {
+            myVisionPortalBuilder.setCamera(myOpMode.hardwareMap.get(WebcamName.class, "Webcam")); // Other choices are: RC phone camera and "switchable camera name".
+        }
+        else {
+            myVisionPortalBuilder.setCamera(myOpMode.hardwareMap.get(WebcamName.class, "Webcam2"));
+        }
         // Add the AprilTag Processor to the VisionPortal Builder.
         myVisionPortalBuilder.addProcessor(myAprilTagProcessor);       // An added Processor is enabled by default.
 
@@ -172,6 +172,7 @@ public class RobotHardware25 {
         // Create a VisionPortal by calling build()
         myVisionPortal = myVisionPortalBuilder.build();
     }
+
 
     public void getVisionPortalData() {
         List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
@@ -203,27 +204,88 @@ public class RobotHardware25 {
     }
 
     // mainly for debugging; gives the hue value in degrees the sensor is currently seeing
-    public float getColorHue() {
+    public float getColorHueRight() {
         float[] hsvValues = new float[3];
-        //Color.RGBToHSV(colorSensor.red(), colorSensor.green(), colorSensor.blue(), hsvValues);
+        Color.RGBToHSV(r_color.red(), r_color.green(), r_color.blue(), hsvValues);
 
         return hsvValues[0];
     }
-    // mainly for debugging; gives the hue value in degrees the sensor is currently seeing
-    public float ballKnowledge() {
+    public float getColorHueLeft() {
         float[] hsvValues = new float[3];
-        int ballColor = 0;
-        Color.RGBToHSV(colorSensor.red(), colorSensor.green(), colorSensor.blue(), hsvValues);
-        if (hsvValues[0] > 110 && hsvValues[0] < 130) {
-            ballColor = 1;
+        Color.RGBToHSV(l_color.red(), l_color.green(), l_color.blue(), hsvValues);
+
+        return hsvValues[0];
+    }
+
+    public int eliteBallKnowledge() {
+        float[] hsvValuesR = new float[3];
+        float[] hsvValuesL = new float[3];
+        int ballColorR = 0;
+        Color.RGBToHSV(r_color.red(), r_color.green(), r_color.blue(), hsvValuesR);
+        int ballColorL = 0;
+        Color.RGBToHSV(l_color.red(), l_color.green(), l_color.blue(), hsvValuesL);
+        int theColor = 0;
+        if (hsvValuesR[0] > 80 && hsvValuesR[0] < 160) { // green
+            ballColorR = 1;
         }
-        else if (hsvValues[0] > 290 && hsvValues[0] < 310) {
-            ballColor = 2;
+        else if (hsvValuesR[0] > 280 || hsvValuesR[0] < 40) { // purple
+            ballColorR = 2;
         }
         else {
-            ballColor = 0;
+            ballColorR = 0;
         }
-        return ballColor;
+
+        if (hsvValuesL[0] > 100 && hsvValuesL[0] < 140) { // green
+            ballColorL = 1;
+        }
+        else if (hsvValuesL[0] > 290 || hsvValuesL[0] < 20) { // purple
+            ballColorL = 2;
+        }
+        else {
+            ballColorL = 0;
+        }
+
+        if (ballColorR == 0 && ballColorL == 1) {
+            theColor = 1;
+        }
+        else if (ballColorR == 1 && ballColorL == 0) {
+            theColor = 2;
+        }
+        else if (ballColorR == 1 && ballColorL == 1) {
+            theColor = 3;
+        }
+        else if (ballColorR == 0 && ballColorL == 2) {
+            theColor = 4;
+        }
+        else if (ballColorR == 2 && ballColorL == 0) {
+            theColor = 5;
+        }
+        else if (ballColorR == 2 && ballColorL == 2) {
+            theColor = 6;
+        }
+        else {
+            theColor = 0;
+        }
+
+        return theColor;
+    }
+
+    private static int counter = 0;
+    public boolean proxy() {
+        double distance = l_color.getDistance(DistanceUnit.CM);
+
+        if (distance <= 5.5) {
+            counter += 1;
+        }
+        else {
+            counter = 0;
+        }
+        if (counter >= 5) {
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 
 
@@ -462,7 +524,7 @@ public class RobotHardware25 {
 
     // FERRIS WHEEL EXCLUSIVE VARIABLES #====================================================================
     boolean ferrisMoving = false;
-    final double ferrisSpeed = 0.3; // Ferris wheel speed
+    final double ferrisSpeed = 0.214; // Ferris wheel speed
 
     public void ferrisW(double stickValue) {
 
@@ -491,13 +553,13 @@ public class RobotHardware25 {
     }
 
     public void ferrisQuarter(boolean bumperValue) {
-        final int TPR = 1500;
+        final int TPR = 1060;
         int quartRot = TPR / 4;
         if (bumperValue) {
             quartRot += ferris.getCurrentPosition();
             ferris.setTargetPosition(quartRot);
             ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-            ferris.setPower(0.3);
+            ferris.setPower(0.2);
             while (ferris.isBusy()) {
 
             }
@@ -514,54 +576,6 @@ public class RobotHardware25 {
             launcher.setPower(0);
         }
     }
-
-//    int targetPosition=0;
-//    int initialPosition=0;
-//    double resetSpeed=0.1;
-//    public void ferrisEnc(double triggerValue, boolean bumperPressed, boolean rightBumperPressed) {
-//
-//        // --- Automated quarter-turn forward ---
-//        if (triggerValue > 0.1 && !ferrisMoving) {
-//            ferrisMoving = true;
-//            int ticksPerQuarterTurn = (int)(ferris.getMotorType().getTicksPerRev() * 0.25);
-//            targetPosition = ferris.getCurrentPosition() + ticksPerQuarterTurn;
-//
-//            ferris.setTargetPosition(targetPosition);
-//            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-//            ferris.setPower(ferrisSpeed);
-//        }
-//        // --- Automated quarter-turn backward ---
-//        else if (bumperPressed && !rightBumperPressed && !ferrisMoving) {
-//            ferrisMoving = true;
-//            int ticksPerQuarterTurn = (int)(ferris.getMotorType().getTicksPerRev() * 0.25);
-//            targetPosition = ferris.getCurrentPosition() - ticksPerQuarterTurn;
-//
-//            ferris.setTargetPosition(targetPosition);
-//            ferris.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-//            ferris.setPower(-ferrisSpeed);
-//        }
-//        // --- Manual backward when both bumpers are held ---
-//        else if (bumperPressed && rightBumperPressed) {
-//            ferris.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-//            ferris.setPower(-resetSpeed); // Move backward slowly
-//        }
-//        // --- When neither both bumpers are held nor other movement commands, stop motor and set new initial position ---
-//        else {
-//            if (ferris.getMode() != DcMotor.RunMode.RUN_USING_ENCODER) {
-//                ferris.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-//                ferris.setPower(0);
-//                initialPosition = ferris.getCurrentPosition(); // Update new initial position
-//            }
-//            ferrisMoving = false;
-//        }
-//
-//        // --- Stop automated movement when target reached ---
-//        if (ferrisMoving && !ferris.isBusy()) {
-//            ferris.setPower(0);
-//            ferris.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-//            ferrisMoving = false;
-//        }
-//    }
 
     int mandState = 0;
 
@@ -609,7 +623,7 @@ public class RobotHardware25 {
         }
     }
 
-    double launchPower = 0.7;
+    double launchPower = 0.45;
     boolean previousButtonStatePowerUp = false;
     boolean previousButtonStatePowerDown = false;
 
@@ -620,8 +634,17 @@ public class RobotHardware25 {
     public void LaunchPowerUp(boolean buttonPress) {
         // Detect rising edge: button just pressed
         if (buttonPress && !previousButtonStatePowerUp) {
-            if (launchPower < 1) {
-                launchPower += 0.05;
+            if (LaunchDistanceNear) {
+                if (launchPower < 0.5) {
+                    launchPower += 0.01;
+                    nearPower = launchPower;
+                }
+            }
+            else {
+                if (launchPower < 0.58) {
+                    launchPower += 0.01;
+                    farPower = launchPower;
+                }
             }
         }
         previousButtonStatePowerUp = buttonPress;
@@ -630,8 +653,17 @@ public class RobotHardware25 {
     public void LaunchPowerDown(boolean buttonPress) {
         // Detect rising edge: button just pressed
         if (buttonPress && !previousButtonStatePowerDown) {
-            if (launchPower > 0) {
-                launchPower -= 0.05;
+            if (LaunchDistanceNear) {
+                if (launchPower > 0.4) {
+                    launchPower -= 0.01;
+                    nearPower = launchPower;
+                }
+            }
+            else {
+                if (launchPower > 0.48) {
+                    launchPower -= 0.01;
+                    farPower = launchPower;
+                }
             }
         }
         previousButtonStatePowerDown = buttonPress;
@@ -681,120 +713,213 @@ public class RobotHardware25 {
     }
 
 
-    public void lockAndLoad(boolean buttonPress, int target, int offset) {
-
-        if (!buttonPress || !myOpMode.opModeIsActive()) {
-            allDrive(0, 0, 0);
-            return;
-        }
+    public int getVisibleAprilTagID(int... validIDs) {
 
         List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
         if (detections == null || detections.isEmpty()) {
-            allDrive(0, 0, 0);
-            return;
+            return 0;
         }
 
-        AprilTagDetection targetTag = null;
         for (AprilTagDetection tag : detections) {
-            if (tag != null && tag.id == target && tag.ftcPose != null) {
-                targetTag = tag;
-                break;
+            if (tag == null || tag.ftcPose == null) {
+                continue;
+            }
+
+            for (int id : validIDs) {
+                if (tag.id == id) {
+                    return tag.id;
+                }
             }
         }
 
-        if (targetTag == null) {
-            allDrive(0, 0, 0);
-            return;
+        return 0;
+    }
+
+
+
+    public void lockAndLoad(boolean buttonPress, int target, int offset) {
+        boolean lockAndLoadEnable = false;
+        if (buttonPress) {
+            lockAndLoadEnable = true;
         }
 
-        double bearing = targetTag.ftcPose.bearing;
-        double tolerance = 1 + offset;
+        if (lockAndLoadEnable) {
+            List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
+            if (detections == null || detections.isEmpty()) {
+                allDrive(0, 0, 0);
+                lockAndLoadEnable = false;
+                return;
+            }
 
-        if (Math.abs(bearing) <= tolerance) {
-            allDrive(0, 0, 0);   // Locked
-            return;
+            AprilTagDetection targetTag = null;
+            for (AprilTagDetection tag : detections) {
+                if (tag != null && tag.id == target && tag.ftcPose != null) {
+                    targetTag = tag;
+                    break;
+                }
+            }
+
+            if (targetTag == null) {
+                allDrive(0, 0, 0);
+                lockAndLoadEnable = false;
+                return;
+            }
+
+            double bearing = targetTag.ftcPose.bearing;
+            double tolerance = 5;
+
+            if (Math.abs(bearing)+offset <= tolerance) {
+                allDrive(0, 0, 0);   // Locked
+                lockAndLoadEnable = false;
+                return;
+            }
+
+            // Proportional turning
+            double minPower = 0.12;
+            double maxPower = 0.25;
+
+            double turnPower = (Math.abs(bearing) / 15.0) * maxPower;
+            turnPower = Math.min(Math.max(turnPower, minPower), maxPower);
+
+            if (bearing < 0) turnPower = -turnPower;
+
+            allDrive(0, 0, turnPower);
+            lockAndLoadEnable = false;
         }
-
-        // Proportional turning
-        double minPower = 0.12;
-        double maxPower = 0.25;
-
-        double turnPower = (Math.abs(bearing) / 15.0) * maxPower;
-        turnPower = Math.min(Math.max(turnPower, minPower), maxPower);
-
-        if (bearing < 0) turnPower = -turnPower;
-
-        allDrive(0, 0, turnPower);
     }
 
 
     public void sortingLaunch(int idCode) {
         // GPP
         if (idCode == 21) {
+
+            mandHalf(true);
+            mandHalf(false);
             ferrisQuarter(true);
             ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+
+            waitSafe(1);
 
             LaunchKicker(true);
             waitSafe(1);
             ReturnKicker(true);
 
+            mandHalf(true);
+            mandHalf(false);
             ferrisQuarter(true);
             ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+            waitSafe(1);
+
 
             LaunchKicker(true);
             waitSafe(1);
             ReturnKicker(true);
 
+            mandHalf(true);
+            mandHalf(false);
             ferrisQuarter(true);
             ferrisQuarter(false);
-            ferrisQuarter(true);
-            ferrisQuarter(false);
-
-            LaunchKicker(true);
+            mandClose(true);
+            mandClose(false);
             waitSafe(1);
-            ReturnKicker(true);
-        }
-        // PGP
-        else if (idCode == 22) {
-            LaunchKicker(true);
-            waitSafe(1);
-            ReturnKicker(true);
 
+            mandHalf(true);
+            mandHalf(false);
             ferrisQuarter(true);
             ferrisQuarter(false);
-
-            LaunchKicker(true);
+            mandClose(true);
+            mandClose(false);
             waitSafe(1);
-            ReturnKicker(true);
-
-            ferrisQuarter(true);
-            ferrisQuarter(false);
 
             LaunchKicker(true);
             waitSafe(1);
             ReturnKicker(true);
         }
         // PPG
+        else if (idCode == 23) {
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            mandHalf(true);
+            mandHalf(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+            waitSafe(1);
+
+            mandHalf(true);
+            mandHalf(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+            waitSafe(1);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            mandHalf(true);
+            mandHalf(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+            waitSafe(1);
+
+            mandHalf(true);
+            mandHalf(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+            waitSafe(1);
+
+            mandHalf(true);
+            mandHalf(false);
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+            waitSafe(1);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+        }
+        // PGP
         else {
-            LaunchKicker(true);
-            waitSafe(1);
-            ReturnKicker(true);
-
-            ferrisQuarter(true);
-            ferrisQuarter(false);
-            ferrisQuarter(true);
-            ferrisQuarter(false);
 
             LaunchKicker(true);
             waitSafe(1);
             ReturnKicker(true);
 
+            mandHalf(true);
+            mandHalf(false);
             ferrisQuarter(true);
             ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+            waitSafe(1);
+
+            LaunchKicker(true);
+            waitSafe(1);
+            ReturnKicker(true);
+
+            mandHalf(true);
+            mandHalf(false);
             ferrisQuarter(true);
             ferrisQuarter(false);
-            ferrisQuarter(true);
-            ferrisQuarter(false);
+            mandClose(true);
+            mandClose(false);
+            waitSafe(1);
 
             LaunchKicker(true);
             waitSafe(1);
@@ -802,11 +927,84 @@ public class RobotHardware25 {
         }
     }
 
+    // ---COLOR CHECKING LIGHT---
 
-    public void thisLittleLightOfMine(int color, double triggerValue, int mandibleState) {
+//    public void thisLittleLightOfMine(int color, double triggerValue, int mandibleState) {
+//
+//        // --- Mandible base color ---
+//        double mandibleColor = 0;
+//        if (mandibleState == 0) {
+//            mandibleColor = 0.28;
+//        }
+//        else if (mandibleState == 1) {
+//            mandibleColor = 0.35;
+//        }
+//        else {
+//            switch (color){
+//                case 0:
+//                    mandibleColor = 1;
+//                    break;
+//                case 1:
+//                case 2:
+//                    mandibleColor = 0.44;
+//                    break;
+//                case 3:
+//                    mandibleColor = 0.5;
+//                    break;
+//                case 4:
+//                case 5:
+//                    mandibleColor = 0.67;
+//                    break;
+//                case 6:
+//                    mandibleColor = 0.72;
+//                    break;
+//            };
+//        }
+//
+//        // --- Auto-aim bearing detection ---
+//        double bearing = Double.NaN;
+//        double tolerance = 1;   // Same base tolerance used by lockAndLoad()
+//
+//        List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
+//        if (detections != null) {
+//            for (AprilTagDetection tag : detections) {
+//                if (tag == null || tag.ftcPose == null) continue;
+//
+//                // Only care about tags 20 and 24
+//                if (tag.id == 20 || tag.id == 24) {
+//                    bearing = tag.ftcPose.bearing;
+//                    break;
+//                }
+//            }
+//        }
+//
+//        // --- Aim override (LOCK INDICATOR) ---
+//        if (triggerValue >= 0.1 && !Double.isNaN(bearing)) {
+//
+//            if (bearing <= tolerance && bearing >= -tolerance) {
+//                // Centered on tag
+//                rgb_light.setPosition(0.45);
+//            }
+//            else if (bearing > tolerance) {
+//                // Tag is to the right
+//                rgb_light.setPosition(0.38);
+//            }
+//            else {
+//                // Tag is to the left
+//                rgb_light.setPosition(0.33);
+//            }
+//            return;
+//        }
+//        else {
+//            rgb_light.setPosition(mandibleColor);
+//        }
+//    }
+
+    // PROXIMITY CHECKING LIGHT
+    public void thisLittleLightOfMine(boolean proximity, double triggerValue, int mandibleState) {
 
         // --- Mandible base color ---
-        double mandibleColor;
+        double mandibleColor = 0;
         if (mandibleState == 0) {
             mandibleColor = 0.28;
         }
@@ -814,12 +1012,17 @@ public class RobotHardware25 {
             mandibleColor = 0.35;
         }
         else {
-            mandibleColor = 0.59;
+            if (proximity) {
+                mandibleColor = 1;
+            }
+            else {
+                mandibleColor = 0.45;
+            }
         }
 
         // --- Auto-aim bearing detection ---
         double bearing = Double.NaN;
-        double tolerance = 1;   // Same base tolerance used by lockAndLoad()
+        double tolerance = 0.5;   // Same base tolerance used by lockAndLoad()
 
         List<AprilTagDetection> detections = myAprilTagProcessor.getDetections();
         if (detections != null) {
@@ -851,31 +1054,10 @@ public class RobotHardware25 {
             }
             return;
         }
-
-        // --- Color modes ---
-        double time = myOpMode.getRuntime();
-        boolean blinkState = ((int)(time * 2)) % 2 == 0; // ~2 Hz blink
-
-        switch (color) {
-
-            case 0:
-                rgb_light.setPosition(mandibleColor);
-                break;
-
-            case 1:
-                rgb_light.setPosition(blinkState ? mandibleColor : 0.5);
-                break;
-
-            case 2:
-                rgb_light.setPosition(blinkState ? mandibleColor : 0.72);
-                break;
-
-            default:
-                rgb_light.setPosition(mandibleColor);
-                break;
+        else {
+            rgb_light.setPosition(mandibleColor);
         }
     }
-
 
 
     public void gradient (boolean button) {
@@ -888,11 +1070,11 @@ public class RobotHardware25 {
 
     public void kickstand (boolean down,boolean up) {
         if (down) {
-            arm_one.setPower(-0.5); // negative?
+            arm_one.setPower(-0.5);
             arm_two.setPower(-0.5);
         }
         else if (up) {
-            arm_one.setPower(0.5); // negative
+            arm_one.setPower(0.5);
             arm_two.setPower(0.5);
         }
         else {
@@ -900,6 +1082,106 @@ public class RobotHardware25 {
             arm_two.setPower(0);
         }
     }
+
+    public double motorTelebl() {
+        return back_left.getPower();
+    }
+    public double motorTelebr() {
+        return back_right.getPower();
+    }
+    public double motorTelefl() {
+        return front_left.getPower();
+    }
+    public double motorTelefr() {
+        return front_right.getPower();
+    }
+
+
+    private double farPower = 0.53;
+    private double nearPower = 0.45;
+
+    public void setPowerDistance(boolean LbuttonPress, boolean RbuttonPress) {
+        if (LbuttonPress) {
+            launchPower = nearPower;
+            LaunchDistanceNear = true; // NEAR
+        }
+        else if (RbuttonPress) {
+            launchPower = farPower;
+            LaunchDistanceNear = false; // FAR
+        }
+    }
+
+    public  void sortLight(int idCode) {
+        if (idCode == 21) {
+            rgb_light.setPosition(0.33);
+        }
+        else if (idCode == 22) {
+            rgb_light.setPosition(0.5);
+        }
+        else if (idCode == 23) {
+            rgb_light.setPosition(0.67);
+        }
+        else {
+            rgb_light.setPosition(0.28);
+        }
+    }
+
+
+    public void lockAndLoadAuto(double seconds, boolean buttonPress, int target, int offset) {
+        myOpMode.resetRuntime();
+        if(!buttonPress) {
+            return;
+        }
+        while (myOpMode.getRuntime() < seconds){
+            lockAndLoad(buttonPress, target, offset);
+            if(!myOpMode.opModeIsActive()) {
+                return;
+            }
+        }
+        allDrive(0, 0, 0);   // Locked
+
+    }
+
+//    public void mandAndWheel(boolean buttonpress) {
+//        if (buttonpress) {
+//            mandClose(true);
+//            mandClose(false);
+//
+//            myOpMode.resetRuntime();
+//            while (myOpMode.getRuntime() < 0.25){
+//                if(!myOpMode.opModeIsActive()) {
+//                    continue;
+//                }
+//            }
+//
+//            ferrisQuarter(true);
+//            ferrisQuarter(false);
+//
+//            myOpMode.resetRuntime();
+//            while (myOpMode.getRuntime() < 0.25){
+//                if(!myOpMode.opModeIsActive()) {
+//                    continue;
+//                }
+//            }
+//
+//            mandOpen(true);
+//            mandOpen(false);
+//        }
+//    }
+
+    public void quickLaunch (boolean buttonpress) {
+        if (buttonpress) {
+            LaunchKicker(true);
+            waitSafe(0.5);
+
+            ReturnKicker(true);
+            waitSafe(0.5);
+
+            ferrisQuarter(true);
+            ferrisQuarter(false);
+        }
+    }
+
 
 
 }
